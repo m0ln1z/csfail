@@ -126,14 +126,17 @@ async def checkConditionsAndNotify():
         if 35 not in spinHistory[-100:]:
             message = "0 золотых за последние 100 спинов"
         else:
+            # Логика для проверки последнего появления значения 35
             last35Index = len(spinHistory) - 1 - spinHistory[::-1].index(35)
             spinsSinceLast35 = len(spinHistory) - last35Index - 1
             if spinsSinceLast35 >= 85:
                 message = f"С последней золотой 35х прошло {spinsSinceLast35} спинов"
             else:
+                print(f"С момента последнего 35 прошло {spinsSinceLast35} спинов. Уведомление не отправлено.")
                 return  
     else:
-        return  
+        print(f"Неизвестное значение: {spinValue}. Пропуск.")
+        return
 
     # Отправляем уведомление и обновляем последнее отправленное значение
     await sendNotification(message)
