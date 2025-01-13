@@ -52,9 +52,10 @@ jobs:
       env:
         SSH_HOST: ${{ secrets.SSH_HOST }}
         SSH_USER: ${{ secrets.SSH_USER }}
-        SSH_KEY: ${{ secrets.SSH_KEY }}
+        SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
       run: |
-        echo "${SSH_KEY}" > deploy_key
-        chmod 600 deploy_key
-        ssh -i deploy_key ${SSH_USER}@${SSH_HOST} "docker pull ${DOCKER_USERNAME}/selenium-bot:latest && docker stop selenium-bot || true && docker rm selenium-bot || true && docker run -d --name selenium-bot ${DOCKER_USERNAME}/selenium-bot:latest"
-        rm deploy_key
+        sshpass -p "${SSH_PASSWORD}" ssh -o StrictHostKeyChecking=no ${SSH_USER}@${SSH_HOST} "
+        docker pull ${DOCKER_USERNAME}/selenium-bot:latest &&
+        docker stop selenium-bot || true &&
+        docker rm selenium-bot || true &&
+        docker run -d --name selenium-bot ${DOCKER_USERNAME}/selenium-bot:latest"
