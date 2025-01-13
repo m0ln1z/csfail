@@ -90,9 +90,11 @@ def fetch_spin_value():
 
 
 
+last_sent_spin_value = None  
+
 async def check_conditions_and_notify():
     """Функция проверки условий и отправки уведомлений."""
-    global spin_history
+    global spin_history, last_sent_spin_value
 
     # Получение последнего значения спина
     spin_value = fetch_spin_value()
@@ -104,38 +106,43 @@ async def check_conditions_and_notify():
     if len(spin_history) > 100:
         spin_history.pop(0)
 
-    print(f"Updated spin history: {spin_history[-10:]}")  # Выводим последние 10 значений для отладки
+    print(f"Updated spin history: {spin_history[-10:]}")  # Отладочная информация
 
-    # Проверка количества золотых за последние 100 спинов
+    # Если новое значение спина совпадает с последним отправленным, ничего не делаем
+    if spin_value == last_sent_spin_value:
+        print("Spin value has not changed, skipping notification.")
+        return
+
+    # Формируем сообщение в зависимости от значения спина
     if spin_value == 0:
         message = "0 золотых за последние 100 спинов"
-        await send_notification(message)
     elif spin_value == 1:
         message = "1 золотая за последние 100 спинов"
-        await send_notification(message)
     elif spin_value == 2:
         message = "2 золотые за последние 100 спинов"
-        await send_notification(message)
     elif spin_value == 3:
         message = "3 золотые за последние 100 спинов"
-        await send_notification(message)
     elif spin_value == 4:
         message = "4 золотых за последние 100 спинов"
-        await send_notification(message)
     elif spin_value == 5:
         message = "5 золотых за последние 100 спинов"
-
-    # Дополнительная логика для случая с 35, если нужно
-    if spin_value == 35:
+    elif spin_value == 35:
         if 35 not in spin_history[-100:]:
             message = "0 золотых за последние 100 спинов"
-            await send_notification(message)
         else:
             last_35_index = len(spin_history) - 1 - spin_history[::-1].index(35)
             spins_since_last_35 = len(spin_history) - last_35_index - 1
             if spins_since_last_35 >= 85:
                 message = f"С последней золотой 35х прошло {spins_since_last_35} спинов"
-                await send_notification(message)
+            else:
+                return  
+    else:
+        return  
+
+    # Отправляем уведомление и обновляем последнее отправленное значение
+    await send_notification(message)
+    last_sent_spin_value = spin_value
+    print(f"Notification sent: {message}")
 
 
 
@@ -145,7 +152,7 @@ async def send_notification(message):
     """Функция для отправки уведомлений в Telegram."""
     for _ in range(3):  # Отправляем сообщение 3 раза
         await bot.send_message(CHAT_ID, message)
-
+        await asyncio.sleep(5) # Delay для отправки 3 сообщений
 
 async def main():
     """Основной цикл программы."""
