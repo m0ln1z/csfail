@@ -8,22 +8,22 @@ from aiogram import Bot, Dispatcher, types, Router
 from aiogram.fsm.storage.memory import MemoryStorage
 
 # Токен бота и ID чата
-BOT_TOKEN = "7381459756:AAFcqXCJtFjx-PJpDSVL4Wcs3543nltkzG8"
-CHAT_ID = "-1002310647745"
+botToken = "7381459756:AAFcqXCJtFjx-PJpDSVL4Wcs3543nltkzG8"
+chatId = "-1002310647745"
 
 # Инициализация бота и диспетчера
-bot = Bot(token=BOT_TOKEN)
+bot = Bot(token=botToken)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 router = Router()
 dp.include_router(router)
 
 # URL и класс для парсинга
-URL = "https://5cs.fail/en/wheel"
-class_name = "rounds-stats__color rounds-stats__color_20x"
+url = "https://5cs.fail/en/wheel"
+className = "rounds-stats__color rounds-stats__color_20x"
 
 # История спинов
-spin_history = []
+spinHistory = []
 
 
 @router.message(lambda message: message.text.lower() == "привет")
@@ -33,22 +33,21 @@ async def hello(message: types.Message):
     await message.answer("Привет! Чем могу помочь?")
 
 
-
-def fetch_spin_value():
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")  # Для работы в фоновом режиме
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    chrome_options.add_experimental_option("useAutomationExtension", False)
-    chrome_options.add_argument(
+def fetchSpinValue():
+    chromeOptions = Options()
+    chromeOptions.add_argument("--headless")  # Для работы в фоновом режиме
+    chromeOptions.add_argument("--disable-gpu")
+    chromeOptions.add_argument("--no-sandbox")
+    chromeOptions.add_argument("--disable-dev-shm-usage")
+    chromeOptions.add_argument("--disable-blink-features=AutomationControlled")
+    chromeOptions.add_experimental_option("excludeSwitches", ["enable-automation"])
+    chromeOptions.add_experimental_option("useAutomationExtension", False)
+    chromeOptions.add_argument(
         "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36"
     )
 
-    driver = webdriver.Chrome(options=chrome_options)
-    driver.get(URL)
+    driver = webdriver.Chrome(options=chromeOptions)
+    driver.get(url)
 
     try:
         print("Waiting for the element...")
@@ -62,14 +61,14 @@ def fetch_spin_value():
         print("Element found. HTML content:")
         print(element.get_attribute("outerHTML"))
         
-        spin_value = element.text.strip()
-        print(f"Fetched spin value: {spin_value}")
+        spinValue = element.text.strip()
+        print(f"Fetched spin value: {spinValue}")
         
         # Преобразуем в целое число, если удается
         try:
-            return int(spin_value)
+            return int(spinValue)
         except ValueError:
-            print(f"Invalid spin value: {spin_value}. Cannot convert to integer.")
+            print(f"Invalid spin value: {spinValue}. Cannot convert to integer.")
             return None
 
     except Exception as e:
@@ -87,85 +86,79 @@ def fetch_spin_value():
         driver.quit()
 
 
+lastSentSpinValue = None  
 
-
-
-last_sent_spin_value = None  
-
-async def check_conditions_and_notify():
+async def checkConditionsAndNotify():
     """Функция проверки условий и отправки уведомлений."""
-    global spin_history, last_sent_spin_value
+    global spinHistory, lastSentSpinValue
 
     # Получение последнего значения спина
-    spin_value = fetch_spin_value()
-    if spin_value is None:
+    spinValue = fetchSpinValue()
+    if spinValue is None:
         return
 
     # Обновление истории спинов (хранится только 100 последних значений)
-    spin_history.append(spin_value)
-    if len(spin_history) > 100:
-        spin_history.pop(0)
+    spinHistory.append(spinValue)
+    if len(spinHistory) > 100:
+        spinHistory.pop(0)
 
-    print(f"Updated spin history: {spin_history[-10:]}")  # Отладочная информация
+    print(f"Updated spin history: {spinHistory[-10:]}")  # Отладочная информация
 
     # Если новое значение спина совпадает с последним отправленным, ничего не делаем
-    if spin_value == last_sent_spin_value:
-        print("Spin value has not changed, skipping notification.")
+    if spinValue == lastSentSpinValue:
+        print(f"Значение золотой {spinValue} не изменено. Пропускаем уведомление.")
         return
 
     # Формируем сообщение в зависимости от значения спина
-    if spin_value == 0:
+    if spinValue == 0:
         message = "0 золотых за последние 100 спинов"
-    elif spin_value == 1:
+    elif spinValue == 1:
         message = "1 золотая за последние 100 спинов"
-    elif spin_value == 2:
+    elif spinValue == 2:
         message = "2 золотые за последние 100 спинов"
-    elif spin_value == 3:
+    elif spinValue == 3:
         message = "3 золотые за последние 100 спинов"
-    elif spin_value == 4:
+    elif spinValue == 4:
         message = "4 золотых за последние 100 спинов"
-    elif spin_value == 5:
+    elif spinValue == 5:
         message = "5 золотых за последние 100 спинов"
-    elif spin_value == 35:
-        if 35 not in spin_history[-100:]:
+    elif spinValue == 35:
+        if 35 not in spinHistory[-100:]:
             message = "0 золотых за последние 100 спинов"
         else:
-            last_35_index = len(spin_history) - 1 - spin_history[::-1].index(35)
-            spins_since_last_35 = len(spin_history) - last_35_index - 1
-            if spins_since_last_35 >= 85:
-                message = f"С последней золотой 35х прошло {spins_since_last_35} спинов"
+            last35Index = len(spinHistory) - 1 - spinHistory[::-1].index(35)
+            spinsSinceLast35 = len(spinHistory) - last35Index - 1
+            if spinsSinceLast35 >= 85:
+                message = f"С последней золотой 35х прошло {spinsSinceLast35} спинов"
             else:
                 return  
     else:
         return  
 
     # Отправляем уведомление и обновляем последнее отправленное значение
-    await send_notification(message)
-    last_sent_spin_value = spin_value
+    await sendNotification(message)
+    lastSentSpinValue = spinValue
     print(f"Notification sent: {message}")
 
 
-
-
-
-async def send_notification(message):
+async def sendNotification(message):
     """Функция для отправки уведомлений в Telegram."""
     for _ in range(3):  # Отправляем сообщение 3 раза
-        await bot.send_message(CHAT_ID, message)
+        await bot.send_message(chatId, message)
         await asyncio.sleep(5) # Delay для отправки 3 сообщений
 
 async def main():
     """Основной цикл программы."""
     # Запускаем проверку условий в фоне
-    asyncio.create_task(check_conditions_and_notify_loop())
+    asyncio.create_task(checkConditionsAndNotifyLoop())
     # Стартуем бота
     await dp.start_polling(bot)
 
 
-async def check_conditions_and_notify_loop():
+async def checkConditionsAndNotifyLoop():
     """Циклическая проверка условий."""
     while True:
-        await check_conditions_and_notify()
+        await checkConditionsAndNotify()
         await asyncio.sleep(60)  # Проверяем раз в минуту
 
 
