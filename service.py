@@ -29,7 +29,7 @@ spinHistory = []
 @router.message(lambda message: message.text.lower() == "привет")
 async def hello(message: types.Message):
     """Обработчик, который отвечает на сообщение 'Привет'."""
-    print(f"Received message: {message.text}")
+    print(f"Полученное сообщение: {message.text}")
     await message.answer("Привет! Чем могу помочь?")
 
 
@@ -50,7 +50,7 @@ def fetchSpinValue():
     driver.get(url)
 
     try:
-        print("Waiting for the element...")
+        print("Ожидание загрузки страницы...")
 
         # Ожидание появления элемента с увеличенным временем
         element = WebDriverWait(driver, 60).until(
@@ -58,21 +58,21 @@ def fetchSpinValue():
         )
         
         # Если элемент найден, выводим его HTML для проверки
-        print("Element found. HTML content:")
+        print("Элемент найден:")
         print(element.get_attribute("outerHTML"))
         
         spinValue = element.text.strip()
-        print(f"Fetched spin value: {spinValue}")
+        print(f"Забираем значение спина: {spinValue}")
         
         # Преобразуем в целое число, если удается
         try:
             return int(spinValue)
         except ValueError:
-            print(f"Invalid spin value: {spinValue}. Cannot convert to integer.")
+            print(f"Неверное значение спина: {spinValue}. Не могу преобразовать в тип integer.")
             return None
 
     except Exception as e:
-        print(f"Error fetching spin value: {e}")
+        print(f"Ошибка получения данных со спинов: {e}")
         
         # Сохраняем HTML и скриншот для отладки
         with open("page_source.html", "w", encoding="utf-8") as file:
@@ -102,7 +102,7 @@ async def checkConditionsAndNotify():
     if len(spinHistory) > 100:
         spinHistory.pop(0)
 
-    print(f"Updated spin history: {spinHistory[-10:]}")  # Отладочная информация
+    print(f"Обновление истории спинов: {spinHistory[-10:]}")  # Отладочная информация
 
     # Если новое значение спина совпадает с последним отправленным, ничего не делаем
     if spinValue == lastSentSpinValue:
@@ -138,7 +138,7 @@ async def checkConditionsAndNotify():
     # Отправляем уведомление и обновляем последнее отправленное значение
     await sendNotification(message)
     lastSentSpinValue = spinValue
-    print(f"Notification sent: {message}")
+    print(f"Уведомление отправлено: {message}")
 
 
 async def sendNotification(message):
