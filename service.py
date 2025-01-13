@@ -147,8 +147,7 @@ async def checkConditionsAndNotify():
             if spinsSinceLast35 >= 85:
                 message = f"С последней золотой 35х прошло {spinsSinceLast35} спинов"
             else:
-                print(
-                    fп
+                print(f"С последней золотой 35х прошло {spinsSinceLast35} спинов. Пропуск.")
                 return
     else:
         print(f"Неизвестное значение: {spinValue}. Пропуск.")
