@@ -24,8 +24,8 @@ jobs:
       # 3. Сборка и пуш Docker-образа
       - name: Build and push Docker image
         run: |
-          docker build -t "${{ secrets.DOCKER_USERNAME }}/selenium-bot:latest" .
-          docker push "${{ secrets.DOCKER_USERNAME }}/selenium-bot:latest"
+          docker build -t "m0ln1z/selenium-bot:latest" .
+          docker push "m0ln1z/selenium-bot:latest"
 
       # 4. Деплой на сервер
       - name: Deploy to server
@@ -36,8 +36,9 @@ jobs:
         run: |
           sudo apt-get install -y sshpass
           sshpass -p "${SSH_PASSWORD}" ssh -o StrictHostKeyChecking=no ${SSH_USER}@${SSH_HOST} "
-          docker pull ${{ secrets.DOCKER_USERNAME }}/selenium-bot:latest &&
+          docker login -u '${{ secrets.DOCKER_USERNAME }}' -p '${{ secrets.DOCKER_PASSWORD }}' &&
+          docker pull m0ln1z/selenium-bot:latest &&
           docker stop selenium-bot || true &&
           docker rm selenium-bot || true &&
-          docker run -d --name selenium-bot ${{ secrets.DOCKER_USERNAME }}/selenium-bot:latest
+          docker run -d --name selenium-bot m0ln1z/selenium-bot:latest
           "
