@@ -1,0 +1,60 @@
+name: Selenium Bot CI/CD
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Lint code
+      run: |
+        pip install flake8
+        flake8 .
+
+    - name: Build Docker image
+      run: |
+        docker build -t selenium-bot .
+
+    - name: Run tests (optional)
+      run: |
+        docker run selenium-bot pytest
+
+    - name: Push Docker image to registry
+      env:
+        DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+      run: |
+        echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
+        docker tag selenium-bot ${DOCKER_USERNAME}/selenium-bot:latest
+        docker push ${DOCKER_USERNAME}/selenium-bot:latest
+
+    - name: Deploy to server
+      env:
+        SSH_HOST: ${{ secrets.SSH_HOST }}
+        SSH_USER: ${{ secrets.SSH_USER }}
+        SSH_KEY: ${{ secrets.SSH_KEY }}
+      run: |
+        echo "${SSH_KEY}" > deploy_key
+        chmod 600 deploy_key
+        ssh -i deploy_key ${SSH_USER}@${SSH_HOST} "docker pull ${DOCKER_USERNAME}/selenium-bot:latest && docker stop selenium-bot || true && docker rm selenium-bot || true && docker run -d --name selenium-bot ${DOCKER_USERNAME}/selenium-bot:latest"
+        rm deploy_key
