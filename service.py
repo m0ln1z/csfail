@@ -9,7 +9,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 
 # Токен бота и ID чата
 botToken = "7381459756:AAFcqXCJtFjx-PJpDSVL4Wcs3543nltkzG8"
-chatId = "-1002310647745"
+chatId = "-4751196447"
 
 # Инициализация бота и диспетчера
 bot = Bot(token=botToken)
