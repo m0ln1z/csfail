@@ -6,14 +6,18 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from aiogram import Bot, Dispatcher, types, Router
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.fsm.storage.memory import MemoryStorage
 
 # Токен бота и ID чата
 botToken = "7381459756:AAFcqXCJtFjx-PJpDSVL4Wcs3543nltkzG8"
 chatId = "-4751196447"
 
-# Инициализация бота и диспетчера
-bot = Bot(token=botToken)
+# Инициализация бота с увеличенным тайм-аутом и диспетчера
+bot = Bot(
+    token=botToken,
+    session=AiohttpSession(timeout=120)  # Тайм-аут для клиента Telegram
+)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 router = Router()
@@ -43,38 +47,36 @@ def fetchSpinValue():
     chromeOptions.add_argument("--disable-blink-features=AutomationControlled")
     chromeOptions.add_experimental_option("excludeSwitches", ["enable-automation"])
     chromeOptions.add_experimental_option("useAutomationExtension", False)
-    chromeOptions.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36")
+    chromeOptions.add_argument(
+        "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36"
+    )
 
-    driver = webdriver.Chrome(options=chromeOptions)
-    
     retries = 3
     for attempt in range(retries):
         try:
+            driver = webdriver.Chrome(options=chromeOptions)
             driver.get(url)
             print("Ожидание загрузки страницы...")
 
-            # Ожидание появления элемента с увеличенным временем
+            # Ожидание появления элемента
             element = WebDriverWait(driver, 60).until(EC.presence_of_element_located(
                 (By.CSS_SELECTOR, ".rounds-stats__color.rounds-stats__color_20x")))
 
-            print("Элемент найден:")
-            print(element.get_attribute("outerHTML"))
-
+            print("Элемент найден:", element.get_attribute("outerHTML"))
             spinValue = element.text.strip()
-            print(f"Забираем значение спина: {spinValue}")
 
-            # Преобразуем в целое число, если удается
             try:
                 return int(spinValue)
             except ValueError:
-                print(f"Неверное значение спина: {spinValue}. Не могу преобразовать в тип integer.")
+                print(f"Неверное значение: {spinValue}. Не число.")
                 return None
         except Exception as e:
-            print(f"Ошибка получения данных: {e}. Попытка {attempt + 1}/{retries}")
+            print(f"Ошибка: {e}. Попытка {attempt + 1}/{retries}")
             if attempt < retries - 1:
-                time.sleep(5)  # Задержка перед следующей попыткой
+                time.sleep(5)
         finally:
-            driver.quit()
+            if 'driver' in locals():
+                driver.quit()
 
     return None
 
@@ -134,7 +136,10 @@ async def main():
 async def checkConditionsAndNotifyLoop():
     """Циклическая проверка условий."""
     while True:
-        await checkConditionsAndNotify()
+        try:
+            await checkConditionsAndNotify()
+        except Exception as e:
+            print(f"Ошибка в цикле: {e}")
         await asyncio.sleep(60)  # Проверка раз в минуту
 
 # Запуск программы
