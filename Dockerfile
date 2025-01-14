@@ -7,7 +7,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium-driver \
     libnss3 \
     libgconf-2-4 \
-    fonts-liberation && \
+    libasound2 \
+    libappindicator3-1 \
+    fonts-liberation \
+    x11-utils \
+    xvfb && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Устанавливаем рабочую директорию

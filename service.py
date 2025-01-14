@@ -1,16 +1,17 @@
-import asyncio
 import logging
+import asyncio
 import time
+import gc
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from aiogram import Bot, Dispatcher, Router
+from aiogram import Bot, Dispatcher, types, Router
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.fsm.storage.memory import MemoryStorage
 
-# Настройка логирования
+# Настроим логирование
 logging.basicConfig(level=logging.INFO)
 
 # Токен бота и ID чата
@@ -18,7 +19,10 @@ botToken = "7381459756:AAFcqXCJtFjx-PJpDSVL4Wcs3543nltkzG8"
 chatId = "-4751196447"
 
 # Инициализация бота с увеличенным тайм-аутом и диспетчера
-bot = Bot(token=botToken, session=AiohttpSession(timeout=120))
+bot = Bot(
+    token=botToken,
+    session=AiohttpSession(timeout=120)  # Тайм-аут для клиента Telegram
+)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 router = Router()
@@ -31,7 +35,7 @@ className = "rounds-stats__color rounds-stats__color_20x"
 # История спинов
 spinHistory = []
 
-# Функция для получения значения спина
+# Функция для получения значения спина с повторными попытками
 def fetchSpinValue():
     chromeOptions = Options()
     chromeOptions.add_argument("--headless")
@@ -46,41 +50,44 @@ def fetchSpinValue():
     )
 
     retries = 3
+    driver = None
     for attempt in range(retries):
         try:
-            driver = webdriver.Chrome(options=chromeOptions)
-            driver.get(url)
-            logging.info("Ожидание загрузки страницы...")
+            if driver is None:
+                driver = webdriver.Chrome(options=chromeOptions)
+                driver.set_page_load_timeout(60)  
+                driver.get(url)
+                print("Ожидание загрузки страницы...")
 
-            element = WebDriverWait(driver, 60).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, f".{className}"))
-            )
+            element = WebDriverWait(driver, 120).until(EC.presence_of_element_located(
+                (By.CSS_SELECTOR, ".rounds-stats__color.rounds-stats__color_20x")))
 
-            logging.info("Элемент найден: %s", element.get_attribute("outerHTML"))
             spinValue = element.text.strip()
+            return int(spinValue) if spinValue.isdigit() else None
 
-            try:
-                return int(spinValue)
-            except ValueError:
-                logging.error("Неверное значение: %s. Не число.", spinValue)
-                return None
         except Exception as e:
-            logging.error("Ошибка: %s. Попытка %d/%d", e, attempt + 1, retries)
-            if attempt < retries - 1:
-                time.sleep(5)
+            print(f"Ошибка в Selenium: {e}. Попытка {attempt + 1}/{retries}")
+            logging.error(f"Ошибка в Selenium: {e}. Попытка {attempt + 1}/{retries}")
+            time.sleep(5)
+            if driver:
+                driver.refresh() 
+                time.sleep(5)  
+
         finally:
-            if 'driver' in locals():
+            if 'driver' in locals() and driver:
                 driver.quit()
+            gc.collect()  # Очистка памяти
 
     return None
 
-# Счетчик количества повторений одного значения spinValue
-unchangedSpinValueCount = 0
-unchangedSpinValueThreshold = 80
-lastSentSpinValue = None
-lastNotifiedSpinValue = None
 
-# Асинхронная функция для проверки условий и отправки уведомлений
+
+# Счетчик количества повторений одного значения spinValue
+unchangedSpinValueCount = 0  
+unchangedSpinValueThreshold = 80  
+lastSentSpinValue = None  
+lastNotifiedSpinValue = None  
+
 async def checkConditionsAndNotify():
     global spinHistory, lastSentSpinValue, lastNotifiedSpinValue, unchangedSpinValueCount
 
@@ -88,6 +95,7 @@ async def checkConditionsAndNotify():
     if spinValue is None:
         return
 
+    # Обновление истории спинов (хранится только 100 последних значений)
     spinHistory.append(spinValue)
     if len(spinHistory) > 100:
         spinHistory.pop(0)
@@ -107,50 +115,56 @@ async def checkConditionsAndNotify():
             alertMessage = f"Значение {spinValue} повторяется или увеличивается уже {unchangedSpinValueThreshold} раз подряд!"
             await sendNotification(alertMessage)
             logging.info(f"Уведомление о повторении отправлено: {alertMessage}")
-            unchangedSpinValueCount = 0
-        return
+            unchangedSpinValueCount = 0  
     else:
         unchangedSpinValueCount = 0
 
+    # Логика для отправки текущего значения
     if spinValue != lastNotifiedSpinValue:
         message = f"{spinValue} золотых за последние 100 спинов"
         await sendNotification(message)
-        lastNotifiedSpinValue = spinValue
+        lastNotifiedSpinValue = spinValue  
         logging.info(f"Уведомление отправлено: {message}")
 
     lastSentSpinValue = spinValue
 
+
+
+
 # Асинхронная функция для отправки уведомлений в Telegram
 async def sendNotification(message):
+    """Функция для отправки уведомлений в Telegram."""
     retries = 3
     for _ in range(retries):
         try:
             await bot.send_message(chatId, message)
-            logging.info(f"Сообщение отправлено: {message}")
+            print(f"Сообщение отправлено: {message}")
             break
         except Exception as e:
-            logging.error(f"Ошибка отправки сообщения: {e}. Попытка повторить...")
+            print(f"Ошибка отправки сообщения: {e}. Попытка повторить...")
             await asyncio.sleep(5)
 
 # Основной цикл программы
 async def main():
-    asyncio.create_task(checkConditionsAndNotifyLoop())
-    await dp.start_polling(bot)
+    """Основной цикл программы."""
+    asyncio.create_task(checkConditionsAndNotifyLoop()) 
+    await dp.start_polling(bot) 
 
 # Циклическая проверка условий
 async def checkConditionsAndNotifyLoop():
+    """Циклическая проверка условий."""
     while True:
         try:
             await checkConditionsAndNotify()
         except Exception as e:
-            logging.error(f"Ошибка в цикле: {e}")
-        await asyncio.sleep(26)
+            print(f"Ошибка в цикле: {e}")
+        await asyncio.sleep(26)  
 
 # Запуск программы
 if __name__ == "__main__":
     import sys
     if sys.version_info >= (3, 8):
-        asyncio.run(main())
+        asyncio.run(main()) 
     else:
         loop = asyncio.get_event_loop()
-        loop.run_until_complete(main())
+        loop.run_until_complete(main())  
