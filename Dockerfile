@@ -23,6 +23,8 @@ COPY . /app
 
 # Устанавливаем зависимости Python
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Убедитесь, что директория /dev/shm существует и имеет правильные разрешения
 RUN mkdir -p /dev/shm && chmod 1777 /dev/shm
 
 # Указываем переменные окружения для Selenium
@@ -30,4 +32,4 @@ ENV CHROME_BIN=/usr/bin/chromium
 ENV CHROME_DRIVER=/usr/bin/chromedriver
 
 # Команда запуска с использованием xvfb-run для эмуляции виртуального экрана
-CMD ["xvfb-run", "--auto-servernum", "--server-args='-screen 0 1280x1024x24'", "python", "service.py"]
+CMD ["xvfb-run", "--auto-servernum", "--server-args=-screen 0 1280x1024x24", "python", "service.py"]
