@@ -31,6 +31,7 @@ className = "rounds-stats__color rounds-stats__color_20x"
 spinHistory = []
 
 
+
 # Функция для получения значения спина с повторными попытками
 def fetchSpinValue():
     chromeOptions = Options()
@@ -74,16 +75,19 @@ def fetchSpinValue():
 
     return None
 
-lastSentSpinValue = None
+
 
 # Счетчик количества повторений одного значения spinValue
 unchangedSpinValueCount = 0  # Счётчик повторений значения
-unchangedSpinValueThreshold = 85  # Порог, после которого отправляется сообщение
+unchangedSpinValueThreshold = 80  # Порог, после которого отправляется сообщение
+lastSentSpinValue = None  # Последнее отправленное значение
+lastNotifiedSpinValue = None  # Последнее значение, для которого было отправлено уведомление
+
 
 # Асинхронная функция для проверки условий и отправки уведомлений
 async def checkConditionsAndNotify():
     """Функция проверки условий и отправки уведомлений."""
-    global spinHistory, lastSentSpinValue, unchangedSpinValueCount
+    global spinHistory, lastSentSpinValue, lastNotifiedSpinValue, unchangedSpinValueCount
 
     # Получение последнего значения спина
     spinValue = fetchSpinValue()
@@ -103,7 +107,7 @@ async def checkConditionsAndNotify():
         unchangedSpinValueCount += 1
         print(f"Значение {spinValue} повторяется. Счётчик: {unchangedSpinValueCount}/{unchangedSpinValueThreshold}")
         
-        # Если значение не меняется 85 раз, отправляем сообщение
+        # Если значение не меняется 80 раз, отправляем сообщение о повторении
         if unchangedSpinValueCount >= unchangedSpinValueThreshold:
             alertMessage = f"Значение {spinValue} не меняется уже {unchangedSpinValueThreshold} раз!"
             await sendNotification(alertMessage)
@@ -114,13 +118,17 @@ async def checkConditionsAndNotify():
         # Если значение изменилось, сбрасываем счётчик
         unchangedSpinValueCount = 0
 
-    # Формируем сообщение в зависимости от значения спина
-    message = f"{spinValue} золотых за последние 100 спинов"
-    
-    # Отправляем уведомление и обновляем последнее отправленное значение
-    await sendNotification(message)
-    lastSentSpinValue = spinValueч
-    print(f"Уведомление отправлено: {message}")
+    # Проверяем, отправлялось ли уведомление с текущим значением
+    if spinValue != lastNotifiedSpinValue:
+        # Формируем сообщение о значении спина
+        message = f"{spinValue} золотых за последние 100 спинов"
+        await sendNotification(message)
+        lastNotifiedSpinValue = spinValue  # Обновляем последнее уведомленное значение
+        print(f"Уведомление отправлено: {message}")
+
+    # Обновляем последнее отправленное значение
+    lastSentSpinValue = spinValue
+
 
 # Асинхронная функция для отправки уведомлений в Telegram
 async def sendNotification(message):
@@ -149,7 +157,7 @@ async def checkConditionsAndNotifyLoop():
             await checkConditionsAndNotify()
         except Exception as e:
             print(f"Ошибка в цикле: {e}")
-        await asyncio.sleep(60)  # Проверка раз в минуту
+        await asyncio.sleep(26)  # Проверка раз в 26 секунд
 
 # Запуск программы
 if __name__ == "__main__":
