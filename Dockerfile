@@ -1,7 +1,10 @@
 # Используем минимальный базовый образ Python
 FROM python:3.10-slim
 
-# Устанавливаем системные зависимости
+# Отключаем буферизацию Python, чтобы логи сразу шли в stdout
+ENV PYTHONUNBUFFERED=1
+
+# Устанавливаем системные зависимости (минимально необходимые для запуска headless Chrome)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         chromium \
@@ -12,25 +15,19 @@ RUN apt-get update && \
         libappindicator3-1 \
         fonts-liberation \
         x11-utils \
-        xvfb \
+        # Если нужен xvfb, оставляйте, но раз у вас headless:
+        # xvfb \
         xauth && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Устанавливаем рабочую директорию
 WORKDIR /app
 
-# Копируем файлы проекта
+# Копируем файлы проекта (включая service.py, requirements.txt и т.п.) в контейнер
 COPY . /app
 
 # Устанавливаем зависимости Python
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Убедитесь, что директория /dev/shm существует и имеет правильные разрешения
-RUN mkdir -p /dev/shm && chmod 1777 /dev/shm
-
-# Указываем переменные окружения для Selenium
-ENV CHROME_BIN=/usr/bin/chromium
-ENV CHROME_DRIVER=/usr/bin/chromedriver
-
-# Команда запуска с использованием xvfb-run для эмуляции виртуального экрана
-CMD ["xvfb-run", "--auto-servernum", "--server-args=-screen 0 1280x1024x24", "python", "service.py"]
+# Команда запуска — просто Python-скрипт
+CMD ["python", "service.py"]

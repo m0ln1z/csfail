@@ -27,7 +27,8 @@ jobs:
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-        run: echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
+        run: |
+          echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
 
       # 4. Сборка и пуш Docker-образа
       - name: Build and push Docker image
@@ -47,10 +48,14 @@ jobs:
           echo 'Установка Docker (если не установлен) из официального репозитория...' &&
           sudo apt-get update &&
           sudo apt-get remove -y docker docker-engine docker.io containerd runc || true &&
-          sudo apt-get install -y ca-certificates curl gnupg &&
+          sudo apt-get install -y ca-certificates curl gnupg lsb-release &&
+
           sudo mkdir -p /etc/apt/keyrings &&
           curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg &&
-          echo 'deb [arch=\$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \$(lsb_release -cs) stable' | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null &&
+
+          echo \"deb [arch=\$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \$(lsb_release -cs) stable\" \
+            | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null &&
+
           sudo apt-get update &&
           sudo apt-get install -y docker-ce docker-ce-cli containerd.io &&
           sudo systemctl start docker &&
@@ -74,6 +79,7 @@ jobs:
           echo 'Запуск нового контейнера...' &&
           docker run -d \
             --name selenium-bot \
+            --restart=always \
             --memory=1g \
             --memory-swap=1g \
             --cpus=0.7 \
