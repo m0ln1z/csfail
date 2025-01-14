@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-liberation \
     x11-utils \
     xvfb \
-    xauth && \  # Устанавливаем xauth
+    xauth && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Устанавливаем рабочую директорию
