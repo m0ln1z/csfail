@@ -94,7 +94,7 @@ def fetchSpinValue():
 
 # Счетчик количества повторений одного значения spinValue
 unchangedSpinValueCount = 0  
-unchangedSpinValueThreshold = 85
+unchangedSpinValueThreshold = 43
 lastSentSpinValue = None  
 lastNotifiedSpinValue = None  
 
@@ -122,7 +122,7 @@ async def checkConditionsAndNotify():
         )
 
         if unchangedSpinValueCount >= unchangedSpinValueThreshold:
-            alertMessage = f"Значение {spinValue} повторяется или увеличивается уже {unchangedSpinValueThreshold} раз подряд!"
+            alertMessage = f"Значение {spinValue} повторяется или увеличивается уже 85 раз подряд!"
             await sendNotification(alertMessage)
             logging.info(f"Уведомление о повторении отправлено: {alertMessage}")
             unchangedSpinValueCount = 0  
