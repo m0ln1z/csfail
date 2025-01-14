@@ -27,7 +27,7 @@ jobs:
           docker build -t "m0ln1z/selenium-bot:latest" .
           docker push "m0ln1z/selenium-bot:latest"
 
-      # 4. Деплой на сервер
+      # 4. Установка Docker на сервере (если требуется) и деплой
       - name: Deploy to server
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
@@ -39,21 +39,21 @@ jobs:
           sudo systemctl start docker
           sudo systemctl enable docker
           sshpass -p "${SSH_PASSWORD}" ssh -o StrictHostKeyChecking=no ${SSH_USER}@${SSH_HOST} "
-          echo 'Checking Docker version' &&
+          echo 'Проверка Docker версии' &&
           docker --version &&
-          echo 'Logging into Docker Hub' &&
+          echo 'Логин в Docker Hub' &&
           docker login -u '${{ secrets.DOCKER_USERNAME }}' -p '${{ secrets.DOCKER_PASSWORD }}' &&
-          echo 'Pulling the Docker image' &&
+          echo 'Обновление образа' &&
           docker pull m0ln1z/selenium-bot:latest &&
-          echo 'Stopping and removing the old container' &&
+          echo 'Остановка старого контейнера' &&
           docker stop selenium-bot || true &&
           docker rm selenium-bot || true &&
-          echo 'Running new container' &&
+          echo 'Запуск нового контейнера' &&
           docker run -d \
           --name selenium-bot \
           --memory=1g \
           --memory-swap=1g \
           --cpus=0.7 \
-          --shm-size=421m \
+          --shm-size=256m \
           m0ln1z/selenium-bot:latest
           "
