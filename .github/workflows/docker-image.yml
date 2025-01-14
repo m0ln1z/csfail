@@ -34,12 +34,21 @@ jobs:
           SSH_USER: ${{ secrets.SSH_USER }}
           SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
         run: |
-          sudo apt-get install -y sshpass
+          sudo apt-get update
+          sudo apt-get install -y sshpass docker.io
+          sudo systemctl start docker
+          sudo systemctl enable docker
           sshpass -p "${SSH_PASSWORD}" ssh -o StrictHostKeyChecking=no ${SSH_USER}@${SSH_HOST} "
+          echo 'Checking Docker version' &&
+          docker --version &&
+          echo 'Logging into Docker Hub' &&
           docker login -u '${{ secrets.DOCKER_USERNAME }}' -p '${{ secrets.DOCKER_PASSWORD }}' &&
+          echo 'Pulling the Docker image' &&
           docker pull m0ln1z/selenium-bot:latest &&
+          echo 'Stopping and removing the old container' &&
           docker stop selenium-bot || true &&
           docker rm selenium-bot || true &&
+          echo 'Running new container' &&
           docker run -d \
           --name selenium-bot \
           --memory=1g \

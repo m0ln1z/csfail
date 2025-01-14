@@ -2,6 +2,8 @@ import logging
 import asyncio
 import time
 import gc
+import json
+import os
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
@@ -10,6 +12,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from aiogram import Bot, Dispatcher, types, Router
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.fsm.storage.memory import MemoryStorage
+from sys import exit
 
 # Настроим логирование
 logging.basicConfig(level=logging.INFO)
@@ -32,8 +35,45 @@ dp.include_router(router)
 url = "https://5cs.fail/en/wheel"
 className = "rounds-stats__color rounds-stats__color_20x"
 
-# История спинов
+# Путь к файлу JSON для сохранения состояния
+json_file = "/app/spin_history.json"
+
+# История спинов и другие переменные
 spinHistory = []
+unchangedSpinValueCount = 0  
+unchangedSpinValueThreshold = 43
+lastSentSpinValue = None  
+lastNotifiedSpinValue = None  
+
+# Загрузка состояния из JSON, если файл существует
+def load_state():
+    global spinHistory, unchangedSpinValueCount, lastSentSpinValue, lastNotifiedSpinValue
+    if os.path.exists(json_file):
+        try:
+            with open(json_file, 'r') as f:
+                state = json.load(f)
+                spinHistory = state.get("spinHistory", [])
+                unchangedSpinValueCount = state.get("unchangedSpinValueCount", 0)
+                lastSentSpinValue = state.get("lastSentSpinValue", None)
+                lastNotifiedSpinValue = state.get("lastNotifiedSpinValue", None)
+                logging.info("Состояние загружено из JSON.")
+        except Exception as e:
+            logging.error(f"Ошибка при загрузке состояния из JSON: {e}")
+
+# Сохранение состояния в JSON
+def save_state():
+    state = {
+        "spinHistory": spinHistory,
+        "unchangedSpinValueCount": unchangedSpinValueCount,
+        "lastSentSpinValue": lastSentSpinValue,
+        "lastNotifiedSpinValue": lastNotifiedSpinValue,
+    }
+    try:
+        with open(json_file, 'w') as f:
+            json.dump(state, f)
+        logging.info("Состояние сохранено в JSON.")
+    except Exception as e:
+        logging.error(f"Ошибка при сохранении состояния в JSON: {e}")
 
 # Функция для получения значения спина с повторными попытками
 def fetchSpinValue():
@@ -89,12 +129,6 @@ def fetchSpinValue():
 
     return None
 
-# Счетчик количества повторений одного значения spinValue
-unchangedSpinValueCount = 0  
-unchangedSpinValueThreshold = 43
-lastSentSpinValue = None  
-lastNotifiedSpinValue = None  
-
 async def checkConditionsAndNotify():
     global spinHistory, lastSentSpinValue, lastNotifiedSpinValue, unchangedSpinValueCount
 
@@ -147,10 +181,17 @@ async def sendNotification(message):
             logging.error(f"Ошибка отправки сообщения: {e}. Попытка повторить...")
             await asyncio.sleep(5)
 
-# Основной цикл программы
+# Основной цикл программы с перезапуском в случае сбоя
 async def main():
-    asyncio.create_task(checkConditionsAndNotifyLoop()) 
-    await dp.start_polling(bot)
+    load_state()  # Загружаем состояние перед запуском
+    while True:
+        try:
+            asyncio.create_task(checkConditionsAndNotifyLoop()) 
+            await dp.start_polling(bot)
+        except Exception as e:
+            logging.error(f"Ошибка в основной программе: {e}. Перезапуск...")
+            save_state()  # Сохраняем состояние перед перезапуском
+            time.sleep(10)  # Задержка перед перезапуском
 
 # Циклическая проверка условий
 async def checkConditionsAndNotifyLoop():
