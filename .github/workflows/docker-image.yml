@@ -40,5 +40,11 @@ jobs:
           docker pull m0ln1z/selenium-bot:latest &&
           docker stop selenium-bot || true &&
           docker rm selenium-bot || true &&
-          docker run -d --name selenium-bot m0ln1z/selenium-bot:latest
+          docker run -d \
+          --name selenium-bot \
+          --memory=750m \
+          --memory-swap=1g \
+          --cpus=0.7 \
+          --shm-size=128m \
+          m0ln1z/selenium-bot:latest
           "
