@@ -82,10 +82,14 @@ def fetchSpinValue():
 
 lastSentSpinValue = None
 
+# Счетчик количества повторений одного значения spinValue
+unchangedSpinValueCount = 0  # Счётчик повторений значения
+unchangedSpinValueThreshold = 85  # Порог, после которого отправляется сообщение
+
 # Асинхронная функция для проверки условий и отправки уведомлений
 async def checkConditionsAndNotify():
     """Функция проверки условий и отправки уведомлений."""
-    global spinHistory, lastSentSpinValue
+    global spinHistory, lastSentSpinValue, unchangedSpinValueCount
 
     # Получение последнего значения спина
     spinValue = fetchSpinValue()
@@ -100,10 +104,21 @@ async def checkConditionsAndNotify():
     # Отладочная информация
     print(f"Обновление истории спинов: {spinHistory[-10:]}")
 
-    # Если новое значение спина совпадает с последним отправленным, ничего не делаем
+    # Проверяем, совпадает ли новое значение с последним отправленным
     if spinValue == lastSentSpinValue:
-        print(f"Значение золотой {spinValue} не изменено. Пропускаем уведомление.")
+        unchangedSpinValueCount += 1
+        print(f"Значение {spinValue} повторяется. Счётчик: {unchangedSpinValueCount}/{unchangedSpinValueThreshold}")
+        
+        # Если значение не меняется 85 раз, отправляем сообщение
+        if unchangedSpinValueCount >= unchangedSpinValueThreshold:
+            alertMessage = f"Значение {spinValue} не меняется уже {unchangedSpinValueThreshold} раз!"
+            await sendNotification(alertMessage)
+            print(f"Уведомление о повторении отправлено: {alertMessage}")
+            unchangedSpinValueCount = 0  # Сбрасываем счётчик
         return
+    else:
+        # Если значение изменилось, сбрасываем счётчик
+        unchangedSpinValueCount = 0
 
     # Формируем сообщение в зависимости от значения спина
     message = f"{spinValue} золотых за последние 100 спинов"
