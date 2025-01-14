@@ -1,4 +1,4 @@
-name: Deploy Bot
+name: Deploy Selenium Bot
 
 on:
   push:
@@ -27,20 +27,25 @@ jobs:
           docker build -t "m0ln1z/selenium-bot:latest" .
           docker push "m0ln1z/selenium-bot:latest"
 
-      # 4. Установка Docker на сервере (если требуется) и деплой
+      # 4. Деплой на сервер
       - name: Deploy to server
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USER }}
           SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
         run: |
-          sudo apt-get update
-          sudo apt-get install -y sshpass docker.io
-          sudo systemctl start docker
-          sudo systemctl enable docker
           sshpass -p "${SSH_PASSWORD}" ssh -o StrictHostKeyChecking=no ${SSH_USER}@${SSH_HOST} "
-          echo 'Проверка Docker версии' &&
-          docker --version &&
+          echo 'Установка Docker из официального репозитория' &&
+          sudo apt-get update &&
+          sudo apt-get remove -y docker docker-engine docker.io containerd runc &&
+          sudo apt-get install -y ca-certificates curl gnupg &&
+          sudo mkdir -p /etc/apt/keyrings &&
+          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg &&
+          echo 'deb [arch=\$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \$(lsb_release -cs) stable' | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null &&
+          sudo apt-get update &&
+          sudo apt-get install -y docker-ce docker-ce-cli containerd.io &&
+          sudo systemctl start docker &&
+          sudo systemctl enable docker &&
           echo 'Логин в Docker Hub' &&
           docker login -u '${{ secrets.DOCKER_USERNAME }}' -p '${{ secrets.DOCKER_PASSWORD }}' &&
           echo 'Обновление образа' &&
