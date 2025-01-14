@@ -18,8 +18,8 @@ from aiogram.fsm.storage.memory import MemoryStorage
 # ---------------------
 logging.basicConfig(level=logging.INFO)
 
-botToken = "ВАШ_ТОКЕН"
-chatId = "ВАШ_CHAT_ID"
+botToken = "7381459756:AAFcqXCJtFjx-PJpDSVL4Wcs3543nltkzG8"
+chatId = "-4751196447"
 
 bot = Bot(token=botToken, session=AiohttpSession(timeout=60))
 storage = MemoryStorage()
