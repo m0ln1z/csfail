@@ -1,21 +1,13 @@
-# Используем базовый образ Python
+# Используем минимальный базовый образ Python
 FROM python:3.10-slim
 
-# Устанавливаем необходимые системные пакеты
-RUN apt-get update && apt-get install -y \
-    wget \
-    unzip \
-    curl \
-    xvfb \
-    libxi6 \
-    libgconf-2-4 \
-    libnss3 \
-    fonts-liberation \
-    libappindicator3-1 \
-    libasound2 \
-    xdg-utils \
+# Устанавливаем системные зависимости
+RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium \
-    chromium-driver && \
+    chromium-driver \
+    libnss3 \
+    libgconf-2-4 \
+    fonts-liberation && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Устанавливаем рабочую директорию
@@ -24,11 +16,12 @@ WORKDIR /app
 # Копируем файлы проекта
 COPY . /app
 
-# Устанавливаем зависимости проекта
+# Устанавливаем зависимости Python
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Открываем порт для приложения (опционально, если требуется)
-EXPOSE 8000
+# Указываем переменные окружения для Selenium
+ENV CHROME_BIN=/usr/bin/chromium
+ENV CHROME_DRIVER=/usr/bin/chromedriver
 
-# Команда для запуска приложения
+# Команда запуска
 CMD ["python", "service.py"]
