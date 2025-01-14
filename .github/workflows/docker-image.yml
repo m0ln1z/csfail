@@ -42,9 +42,9 @@ jobs:
           docker rm selenium-bot || true &&
           docker run -d \
           --name selenium-bot \
-          --memory=750m \
+          --memory=1g \
           --memory-swap=1g \
           --cpus=0.7 \
-          --shm-size=128m \
+          --shm-size=421m \
           m0ln1z/selenium-bot:latest
           "

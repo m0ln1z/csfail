@@ -45,10 +45,13 @@ def fetchSpinValue():
     chromeOptions.add_argument("--disable-blink-features=AutomationControlled")
     chromeOptions.add_experimental_option("excludeSwitches", ["enable-automation"])
     chromeOptions.add_experimental_option("useAutomationExtension", False)
-    
-    # Отключаем загрузку изображений и других ненужных ресурсов
+
+    # Минимизация загрузки ресурсов
     prefs = {"profile.managed_default_content_settings.images": 2}
     chromeOptions.add_experimental_option("prefs", prefs)
+
+    # Минимизация размера окна
+    chromeOptions.add_argument("window-size=800x600")
 
     chromeOptions.add_argument(
         "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36"
@@ -62,7 +65,7 @@ def fetchSpinValue():
                 driver = webdriver.Chrome(options=chromeOptions)
                 driver.set_page_load_timeout(30)  # Время ожидания на загрузку страницы
                 driver.get(url)
-                print("Ожидание загрузки страницы...")
+                logging.info("Ожидание загрузки страницы...")
 
             # Ожидаем только появления необходимого элемента
             element = WebDriverWait(driver, 30).until(EC.presence_of_element_located(
@@ -72,25 +75,19 @@ def fetchSpinValue():
             return int(spinValue) if spinValue.isdigit() else None
 
         except Exception as e:
-            print(f"Ошибка в Selenium: {e}. Попытка {attempt + 1}/{retries}")
             logging.error(f"Ошибка в Selenium: {e}. Попытка {attempt + 1}/{retries}")
             time.sleep(5)
             if driver:
-                # Попробуем перезагрузить страницу, если произошла ошибка
-                print("Перезагружаем страницу...")
+                logging.info("Перезагружаем страницу...")
                 driver.refresh()
                 time.sleep(10)  # Увеличенный тайм-аут между перезагрузками
 
         finally:
-            # Закрытие драйвера
-            if 'driver' in locals() and driver:
+            if driver:
                 driver.quit()
-            gc.collect()  # Очистка памяти
+            gc.collect()  # Очистка памяти после завершения работы с браузером
 
     return None
-
-
-
 
 # Счетчик количества повторений одного значения spinValue
 unchangedSpinValueCount = 0  
@@ -138,37 +135,31 @@ async def checkConditionsAndNotify():
 
     lastSentSpinValue = spinValue
 
-
-
-
 # Асинхронная функция для отправки уведомлений в Telegram
 async def sendNotification(message):
-    """Функция для отправки уведомлений в Telegram."""
     retries = 3
     for _ in range(retries):
         try:
             await bot.send_message(chatId, message)
-            print(f"Сообщение отправлено: {message}")
+            logging.info(f"Сообщение отправлено: {message}")
             break
         except Exception as e:
-            print(f"Ошибка отправки сообщения: {e}. Попытка повторить...")
+            logging.error(f"Ошибка отправки сообщения: {e}. Попытка повторить...")
             await asyncio.sleep(5)
 
 # Основной цикл программы
 async def main():
-    """Основной цикл программы."""
     asyncio.create_task(checkConditionsAndNotifyLoop()) 
-    await dp.start_polling(bot) 
+    await dp.start_polling(bot)
 
 # Циклическая проверка условий
 async def checkConditionsAndNotifyLoop():
-    """Циклическая проверка условий."""
     while True:
         try:
             await checkConditionsAndNotify()
         except Exception as e:
-            print(f"Ошибка в цикле: {e}")
-        await asyncio.sleep(26)  
+            logging.error(f"Ошибка в цикле: {e}")
+        await asyncio.sleep(30)  # Увеличено время ожидания для снижения нагрузки
 
 # Запуск программы
 if __name__ == "__main__":
@@ -177,4 +168,4 @@ if __name__ == "__main__":
         asyncio.run(main()) 
     else:
         loop = asyncio.get_event_loop()
-        loop.run_until_complete(main())  
+        loop.run_until_complete(main())
