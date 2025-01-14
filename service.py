@@ -21,7 +21,7 @@ chatId = "-4751196447"
 # Инициализация бота с увеличенным тайм-аутом и диспетчера
 bot = Bot(
     token=botToken,
-    session=AiohttpSession(timeout=120)  # Тайм-аут для клиента Telegram
+    session=AiohttpSession(timeout=60)  # Тайм-аут для клиента Telegram
 )
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
@@ -55,11 +55,11 @@ def fetchSpinValue():
         try:
             if driver is None:
                 driver = webdriver.Chrome(options=chromeOptions)
-                driver.set_page_load_timeout(60)  
+                driver.set_page_load_timeout(30)  
                 driver.get(url)
                 print("Ожидание загрузки страницы...")
 
-            element = WebDriverWait(driver, 120).until(EC.presence_of_element_located(
+            element = WebDriverWait(driver, 30).until(EC.presence_of_element_located(
                 (By.CSS_SELECTOR, ".rounds-stats__color.rounds-stats__color_20x")))
 
             spinValue = element.text.strip()
@@ -84,7 +84,7 @@ def fetchSpinValue():
 
 # Счетчик количества повторений одного значения spinValue
 unchangedSpinValueCount = 0  
-unchangedSpinValueThreshold = 80  
+unchangedSpinValueThreshold = 85
 lastSentSpinValue = None  
 lastNotifiedSpinValue = None  
 
