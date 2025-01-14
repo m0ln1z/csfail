@@ -14,25 +14,34 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # 2. Вход в Docker Hub
+      # 2. Получение тега версии для Docker-образа
+      - name: Set Docker image tag
+        id: set_tag
+        run: |
+          TAG=$(git rev-parse --short HEAD)  # Используем короткий хэш коммита как тег
+          echo "DOCKER_TAG=${TAG}" >> $GITHUB_ENV  # Сохраняем переменную окружения
+          echo "Docker tag set to ${TAG}"
+
+      # 3. Вход в Docker Hub
       - name: Login to Docker Hub
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
         run: echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
 
-      # 3. Сборка и пуш Docker-образа
+      # 4. Сборка и пуш Docker-образа
       - name: Build and push Docker image
         run: |
-          docker build -t "m0ln1z/selenium-bot:latest" .
-          docker push "m0ln1z/selenium-bot:latest"
+          docker build -t "m0ln1z/selenium-bot:${{ env.DOCKER_TAG }}" .
+          docker push "m0ln1z/selenium-bot:${{ env.DOCKER_TAG }}"
 
-      # 4. Деплой на сервер
+      # 5. Деплой на сервер
       - name: Deploy to server
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USER }}
           SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
+          DOCKER_TAG: ${{ env.DOCKER_TAG }}
         run: |
           sshpass -p "${SSH_PASSWORD}" ssh -o StrictHostKeyChecking=no ${SSH_USER}@${SSH_HOST} "
           echo 'Установка Docker из официального репозитория' &&
@@ -49,7 +58,7 @@ jobs:
           echo 'Логин в Docker Hub' &&
           docker login -u '${{ secrets.DOCKER_USERNAME }}' -p '${{ secrets.DOCKER_PASSWORD }}' &&
           echo 'Обновление образа' &&
-          docker pull m0ln1z/selenium-bot:latest &&
+          docker pull m0ln1z/selenium-bot:${DOCKER_TAG} &&
           echo 'Остановка старого контейнера' &&
           docker stop selenium-bot || true &&
           docker rm selenium-bot || true &&
@@ -60,5 +69,5 @@ jobs:
           --memory-swap=1g \
           --cpus=0.7 \
           --shm-size=256m \
-          m0ln1z/selenium-bot:latest
+          m0ln1z/selenium-bot:${DOCKER_TAG}
           "
