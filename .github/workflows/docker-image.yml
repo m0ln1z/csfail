@@ -14,12 +14,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # 2. Получение тега версии для Docker-образа
+      # 2. Получение тега (короткого SHA) для Docker-образа
       - name: Set Docker image tag
         id: set_tag
         run: |
-          TAG=$(git rev-parse --short HEAD)  # Используем короткий хэш коммита как тег
-          echo "DOCKER_TAG=${TAG}" >> $GITHUB_ENV  # Сохраняем переменную окружения
+          TAG=$(git rev-parse --short HEAD)
+          echo "DOCKER_TAG=${TAG}" >> $GITHUB_ENV
           echo "Docker tag set to ${TAG}"
 
       # 3. Вход в Docker Hub
@@ -44,9 +44,9 @@ jobs:
           DOCKER_TAG: ${{ env.DOCKER_TAG }}
         run: |
           sshpass -p "${SSH_PASSWORD}" ssh -o StrictHostKeyChecking=no ${SSH_USER}@${SSH_HOST} "
-          echo 'Установка Docker из официального репозитория' &&
+          echo 'Установка Docker (если не установлен) из официального репозитория...' &&
           sudo apt-get update &&
-          sudo apt-get remove -y docker docker-engine docker.io containerd runc &&
+          sudo apt-get remove -y docker docker-engine docker.io containerd runc || true &&
           sudo apt-get install -y ca-certificates curl gnupg &&
           sudo mkdir -p /etc/apt/keyrings &&
           curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg &&
@@ -55,19 +55,19 @@ jobs:
           sudo apt-get install -y docker-ce docker-ce-cli containerd.io &&
           sudo systemctl start docker &&
           sudo systemctl enable docker &&
-          echo 'Логин в Docker Hub' &&
+          echo 'Логин в Docker Hub...' &&
           docker login -u '${{ secrets.DOCKER_USERNAME }}' -p '${{ secrets.DOCKER_PASSWORD }}' &&
-          echo 'Обновление образа' &&
+          echo 'Обновление образа...' &&
           docker pull m0ln1z/selenium-bot:${DOCKER_TAG} &&
-          echo 'Остановка старого контейнера' &&
+          echo 'Остановка и удаление старого контейнера (если был)...' &&
           docker stop selenium-bot || true &&
           docker rm selenium-bot || true &&
-          echo 'Запуск нового контейнера' &&
+          echo 'Запуск нового контейнера...' &&
           docker run -d \
-          --name selenium-bot \
-          --memory=1g \
-          --memory-swap=1g \
-          --cpus=0.7 \
-          --shm-size=256m \
-          m0ln1z/selenium-bot:${DOCKER_TAG}
+            --name selenium-bot \
+            --memory=1g \
+            --memory-swap=1g \
+            --cpus=0.7 \
+            --shm-size=256m \
+            m0ln1z/selenium-bot:${DOCKER_TAG}
           "
