@@ -30,12 +30,6 @@ className = "rounds-stats__color rounds-stats__color_20x"
 # История спинов
 spinHistory = []
 
-# Обработчик приветствия
-@router.message(lambda message: message.text.lower() == "привет")
-async def hello(message: types.Message):
-    """Обработчик, который отвечает на сообщение 'Привет'."""
-    print(f"Полученное сообщение: {message.text}")
-    await message.answer("Привет! Чем могу помочь?")
 
 # Функция для получения значения спина с повторными попытками
 def fetchSpinValue():
@@ -125,7 +119,7 @@ async def checkConditionsAndNotify():
     
     # Отправляем уведомление и обновляем последнее отправленное значение
     await sendNotification(message)
-    lastSentSpinValue = spinValue
+    lastSentSpinValue = spinValueч
     print(f"Уведомление отправлено: {message}")
 
 # Асинхронная функция для отправки уведомлений в Telegram
