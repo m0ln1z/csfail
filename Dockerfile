@@ -1,8 +1,11 @@
 # Используем официальный Python 3.11 образ
 FROM python:3.11-slim
 
+# Обновляем репозитории перед установкой
+RUN apt-get update --fix-missing
+
 # Устанавливаем необходимые системные зависимости для Selenium/Chrome
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get install -y --no-install-recommends \
     wget \
     ca-certificates \
     curl \
@@ -31,7 +34,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xdg-utils \
     && rm -rf /var/lib/apt/lists/*
 
-# Устанавливаем Google Chrome (или Chromium, если предпочтительнее)
+# Устанавливаем Google Chrome (или Chromium)
 RUN wget -q -O - https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb > google-chrome.deb && \
     dpkg -i google-chrome.deb; \
     apt-get install -f -y && \
