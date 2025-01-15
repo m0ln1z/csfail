@@ -210,7 +210,7 @@ async def checkConditionsAndNotify():
     # Иначе сбрасываем в 0
     # -----------------------------------------------------------------
     if (
-        spinValue >= (lastSentSpinValue if lastSentSpinValue is not None else float('-inf'))
+        spinValue <= (lastSentSpinValue if lastSentSpinValue is not None else float('-inf'))
         or (lastSentSpinValue is not None
             and len(spinHistory) > 1
             and lastSentSpinValue > spinHistory[-2])
@@ -272,15 +272,8 @@ async def checkConditionsAndNotifyLoop():
         try:
             await checkConditionsAndNotify()
         except Exception as e:
-            # Если вдруг какая-то ошибка не словилась внутри,
-            # то логируем и закрываем драйвер (на всякий случай).
             logging.error(f"Ошибка в цикле: {e}")
             close_driver()
-            # Если хотим, чтобы при любой Exception падал весь скрипт,
-            # можем "пробросить" исключение дальше:
-            # raise
-
-        # Интервал между запросами
         await asyncio.sleep(60)
 
 
