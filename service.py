@@ -270,7 +270,7 @@ async def checkConditionsAndNotify():
             logging.info(f"Счётчик Blue сброшен")
         lastBlueValue = valueBlue
 
-        if valueBlueCount >= 8 and valueBlue != lastNotifiedBlueValue:
+        if valueBlueCount >= 9 and valueBlue != lastNotifiedBlueValue:
             message = f"Синяя не выпадала 12 спинов подряд!"
             await sendNotification(message)
             lastNotifiedBlueValue = valueBlue
@@ -287,7 +287,7 @@ async def checkConditionsAndNotify():
             logging.info(f"Счётчик Green сброшен")
         lastGreenValue = valueGreen
 
-        if valueGreenCount >= 5 and valueGreen != lastNotifiedGreenValue:
+        if valueGreenCount >= 6 and valueGreen != lastNotifiedGreenValue:
             message = f"Зелёная не выпадала 10 спинов подряд!"
             await sendNotification(message)
             lastNotifiedGreenValue = valueGreen
@@ -304,7 +304,7 @@ async def checkConditionsAndNotify():
             logging.info(f"Счётчик Purple сброшен")
         lastPurpleValue = valuePurple
 
-        if valuePurpleCount >= 5 and valuePurple != lastNotifiedPurpleValue:
+        if valuePurpleCount >= 6 and valuePurple != lastNotifiedPurpleValue:
             message = f"Фиолетовая не выпадала 10 спинов подряд!"
             await sendNotification(message)
             lastNotifiedPurpleValue = valuePurple
