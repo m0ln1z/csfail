@@ -217,13 +217,13 @@ async def checkConditionsAndNotify():
     ):
         unchangedSpinValueCount += 1
         logging.info(
-            f"Значение {spinValue} >= предыдущего ({lastSentSpinValue}); "
+            f"Значение {spinValue} <= предыдущего ({lastSentSpinValue}); "
             f"Счётчик: {unchangedSpinValueCount}/{unchangedSpinValueThreshold}"
         )
 
         if unchangedSpinValueCount >= unchangedSpinValueThreshold:
             alertMessage = (
-                f"Значение {spinValue} повторяется или увеличивается уже 85 раз подряд!"
+                f"Значение {spinValue} повторяется уже 85 раз подряд!"
             )
             await sendNotification(alertMessage)
             logging.info(f"Уведомление о повторении отправлено: {alertMessage}")
