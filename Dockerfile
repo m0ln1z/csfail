@@ -1,4 +1,4 @@
-# Используем официальный образ Python (3.11) в режиме "slim"
+# Используем официальный образ Python (3.11) в режиме "slim" (Debian/Ubuntu)
 FROM python:3.11-slim
 
 # Устанавливаем необходимые системные зависимости для Pyppeteer/Chromium
@@ -40,12 +40,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     lsb-release \
     wget \
     xdg-utils \
-    # Для удобства, если понадобятся прочие утилиты
     git \
     curl \
+    # Дополнительные пакеты, которые часто требуются
+    libgbm-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Устанавливаем переменные окружения, чтобы pyppeteer запускался без песочницы
+# Устанавливаем переменные окружения для pyppeteer
 ENV PYPPETEER_HOME=/pyppeteer
 ENV PYPPETEER_LAUNCH_OPTS='{"args":["--no-sandbox","--disable-setuid-sandbox"]}'
 
