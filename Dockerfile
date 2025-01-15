@@ -1,23 +1,18 @@
-# Используем минимальный базовый образ Python
-FROM python:3.10-slim
+# Используем официальный образ Python (3.11) в режиме "slim"
+FROM python:3.11-slim
 
-# Отключаем буферизацию Python, чтобы логи сразу шли в stdout
-ENV PYTHONUNBUFFERED=1
-
-# Устанавливаем необходимые системные зависимости для pyppeteer
-# (шрифты, libnss, libatk, GTK3 и т.п.)
+# Устанавливаем необходимые системные зависимости для Pyppeteer/Chromium
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gconf-service \
     libasound2 \
     libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libc6 \
     libcairo2 \
     libcups2 \
     libdbus-1-3 \
     libexpat1 \
     libfontconfig1 \
     libgcc1 \
+    libgconf-2-4 \
     libgdk-pixbuf2.0-0 \
     libglib2.0-0 \
     libgtk-3-0 \
@@ -25,7 +20,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libnss3 \
     libpango-1.0-0 \
     libpangocairo-1.0-0 \
-    libstdc++6 \
     libx11-6 \
     libx11-xcb1 \
     libxcb1 \
@@ -39,27 +33,33 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxrender1 \
     libxss1 \
     libxtst6 \
-    fonts-liberation \
-    libappindicator3-1 \
-    libgbm-dev \
-    wget \
-    gnupg \
     ca-certificates \
-    --no-install-recommends && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+    fonts-liberation \
+    libappindicator1 \
+    libnss3 \
+    lsb-release \
+    wget \
+    xdg-utils \
+    # Для удобства, если понадобятся прочие утилиты
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# Устанавливаем рабочую директорию
+# Устанавливаем переменные окружения, чтобы pyppeteer запускался без песочницы
+ENV PYPPETEER_HOME=/pyppeteer
+ENV PYPPETEER_LAUNCH_OPTS='{"args":["--no-sandbox","--disable-setuid-sandbox"]}'
+
+# Создаём директорию под код
 WORKDIR /app
 
-# Копируем файлы проекта (service.py, requirements.txt и т.п.) в контейнер
-COPY . /app
+# Копируем файл зависимостей
+COPY requirements.txt /app/requirements.txt
 
-# Устанавливаем зависимости Python
+# Устанавливаем Python-зависимости
 RUN pip install --no-cache-dir -r requirements.txt
 
-# (Необязательно) Предзагружаем Chromium в сам образ, чтобы pyppeteer не качал при старте
-# Это увеличит размер образа, но ускорит запуск.
-RUN python -c "import pyppeteer; pyppeteer.chromium_downloader.download_chromium()"
+# Копируем остальные файлы проекта в контейнер
+COPY . /app
 
-# Команда запуска — просто Python-скрипт
+# Запускаем основной скрипт при старте контейнера
 CMD ["python", "service.py"]

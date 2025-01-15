@@ -76,7 +76,7 @@ async def fetchSpinValue():
         r = await asession.get(url)
 
         # Если сайт динамически подгружает данные через JS — делаем рендер
-        await r.html.arender(timeout=20, sleep=1)
+        await r.html.arender(timeout=60, sleep=1)
 
         element = r.html.find(f".{className.replace(' ', '.')}", first=True)
         if element:

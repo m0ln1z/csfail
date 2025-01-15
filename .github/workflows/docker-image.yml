@@ -6,14 +6,42 @@ on:
 
 jobs:
   deploy:
+    # Вместо обычного runs-on используем container job
     runs-on: ubuntu-latest
+    container:
+      image: ubuntu:22.04
+      # Указываем нужные ресурсы (например, 8 ГБ памяти и 2 CPU)
+      # Работает только в container jobs на GitHub Actions
+      resources:
+        limits:
+          memory: 8GB
+          # В GH Actions можно указать CPU в виде целого или долей
+          cpus: 2
 
     steps:
       # 1. Клонирование репозитория
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # 2. Формирование тега Docker-образа на основе короткого SHA коммита
+      # 2. Установка Docker внутри контейнера (ubuntu:22.04 чистый образ)
+      - name: Install Docker
+        run: |
+          apt-get update
+          apt-get install -y \
+            ca-certificates curl gnupg lsb-release
+
+          mkdir -p /etc/apt/keyrings
+          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+          echo \
+            "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+            https://download.docker.com/linux/ubuntu \
+            $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
+
+          apt-get update
+          apt-get install -y docker-ce docker-ce-cli containerd.io
+
+      # 3. Формирование тега Docker-образа на основе короткого SHA коммита
       - name: Set Docker image tag
         id: set_tag
         run: |
@@ -21,7 +49,7 @@ jobs:
           echo "DOCKER_TAG=${TAG}" >> $GITHUB_ENV
           echo "Docker tag set to ${TAG}"
 
-      # 3. Логин в Docker Hub
+      # 4. Логин в Docker Hub
       - name: Login to Docker Hub
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
@@ -29,13 +57,13 @@ jobs:
         run: |
           echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
 
-      # 4. Сборка и пуш Docker-образа
+      # 5. Сборка и пуш Docker-образа
       - name: Build and push Docker image
         run: |
           docker build -t "m0ln1z/selenium-bot:${{ env.DOCKER_TAG }}" .
           docker push "m0ln1z/selenium-bot:${{ env.DOCKER_TAG }}"
 
-      # 5. Деплой на сервер
+      # 6. Деплой на сервер
       - name: Deploy to server
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
@@ -43,6 +71,8 @@ jobs:
           SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
           DOCKER_TAG: ${{ env.DOCKER_TAG }}
         run: |
+          apt-get update && apt-get install -y sshpass
+
           sshpass -p "${SSH_PASSWORD}" ssh -o StrictHostKeyChecking=no ${SSH_USER}@${SSH_HOST} "
           echo 'Установка Docker (если не установлен) из официального репозитория...' &&
           sudo apt-get update &&
@@ -52,8 +82,9 @@ jobs:
           sudo mkdir -p /etc/apt/keyrings &&
           curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg &&
 
-          echo \"deb [arch=\$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \$(lsb_release -cs) stable\" \
-            | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null &&
+          echo \"deb [arch=\$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+           https://download.docker.com/linux/ubuntu \$(lsb_release -cs) stable\" \
+           | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null &&
 
           sudo apt-get update &&
           sudo apt-get install -y docker-ce docker-ce-cli containerd.io &&
@@ -69,7 +100,6 @@ jobs:
           echo 'Остановка старого контейнера...' &&
           docker stop selenium-bot || docker kill selenium-bot || true &&
 
-          # Даём Docker время корректно завершить контейнер
           sleep 3 &&
 
           echo 'Удаление старого контейнера...' &&
@@ -79,7 +109,7 @@ jobs:
           docker run -d \
             --name selenium-bot \
             --restart=always \
-            --memory=1g \
+            --memory=2g \
             --memory-swap=1g \
             --cpus=0.7 \
             --shm-size=256m \
