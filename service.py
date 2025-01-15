@@ -262,7 +262,7 @@ async def checkConditionsAndNotify():
 
     # Обновление счётчика для valueBlue
     if valueBlue is not None:
-        if lastBlueValue is not None and valueBlue <= lastBlueValue:
+        if lastBlueValue is not None and valueBlue < lastBlueValue:
             valueBlueCount += 1
             logging.info(f"Счётчик Blue увеличен до {valueBlueCount}")
         else:
@@ -270,7 +270,7 @@ async def checkConditionsAndNotify():
             logging.info(f"Счётчик Blue сброшен")
         lastBlueValue = valueBlue
 
-        if valueBlueCount >= 9 and valueBlue != lastNotifiedBlueValue:
+        if valueBlueCount >= 6 and valueBlue != lastNotifiedBlueValue:
             message = f"Синяя не выпадала 12 спинов подряд!"
             await sendNotification(message)
             lastNotifiedBlueValue = valueBlue
@@ -279,7 +279,7 @@ async def checkConditionsAndNotify():
 
     # Обновление счётчика для valueGreen
     if valueGreen is not None:
-        if lastGreenValue is not None and valueGreen <= lastGreenValue:
+        if lastGreenValue is not None and valueGreen < lastGreenValue:
             valueGreenCount += 1
             logging.info(f"Счётчик Green увеличен до {valueGreenCount}")
         else:
@@ -287,7 +287,7 @@ async def checkConditionsAndNotify():
             logging.info(f"Счётчик Green сброшен")
         lastGreenValue = valueGreen
 
-        if valueGreenCount >= 6 and valueGreen != lastNotifiedGreenValue:
+        if valueGreenCount >= 5 and valueGreen != lastNotifiedGreenValue:
             message = f"Зелёная не выпадала 10 спинов подряд!"
             await sendNotification(message)
             lastNotifiedGreenValue = valueGreen
@@ -296,7 +296,7 @@ async def checkConditionsAndNotify():
 
     # Обновление счётчика для valuePurple
     if valuePurple is not None:
-        if lastPurpleValue is not None and valuePurple <= lastPurpleValue:
+        if lastPurpleValue is not None and valuePurple < lastPurpleValue:
             valuePurpleCount += 1
             logging.info(f"Счётчик Purple увеличен до {valuePurpleCount}")
         else:
@@ -304,14 +304,14 @@ async def checkConditionsAndNotify():
             logging.info(f"Счётчик Purple сброшен")
         lastPurpleValue = valuePurple
 
-        if valuePurpleCount >= 6 and valuePurple != lastNotifiedPurpleValue:
+        if valuePurpleCount >= 5 and valuePurple != lastNotifiedPurpleValue:
             message = f"Фиолетовая не выпадала 10 спинов подряд!"
             await sendNotification(message)
             lastNotifiedPurpleValue = valuePurple
             logging.info(f"Уведомление отправлено: {message}")
             valuePurpleCount = 0  # Сброс счетчика после уведомления
 
-    # Обработка для основного значения (20x)
+    # Обработка для основного значения (35x)
     if spinValue is not None:
         if (
             spinValue <= (lastSentSpinValue if lastSentSpinValue is not None else float('-inf'))
