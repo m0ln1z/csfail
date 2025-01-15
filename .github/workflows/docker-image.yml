@@ -6,24 +6,19 @@ on:
 
 jobs:
   deploy:
-    # Вместо обычного runs-on используем container job
     runs-on: ubuntu-latest
     container:
       image: ubuntu:22.04
-      # Указываем нужные ресурсы (например, 8 ГБ памяти и 2 CPU)
-      # Работает только в container jobs на GitHub Actions
-      resources:
-        limits:
-          memory: 8GB
-          # В GH Actions можно указать CPU в виде целого или долей
-          cpus: 2
-
+      # Можно указать docker options, но на GitHub-хостed это лишь ограничит контейнер
+      # в рамках уже существующих лимитов (примерно 2 CPU, ~7GB RAM).
+      options: --cpus=2 --memory=3g
+    
     steps:
       # 1. Клонирование репозитория
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # 2. Установка Docker внутри контейнера (ubuntu:22.04 чистый образ)
+      # 2. Установка Docker (т.к. в чистом ubuntu:22.04 его нет)
       - name: Install Docker
         run: |
           apt-get update
@@ -109,7 +104,7 @@ jobs:
           docker run -d \
             --name selenium-bot \
             --restart=always \
-            --memory=2g \
+            --memory=3g \
             --memory-swap=1g \
             --cpus=0.7 \
             --shm-size=256m \
