@@ -34,6 +34,7 @@ spinHistory = []
 STATE_FILE = "state.json"
 
 def load_state():
+    """Загружаем состояние из JSON-файла (если есть)."""
     global unchangedSpinValueCount, lastSentSpinValue, lastNotifiedSpinValue, spinHistory
     if os.path.exists(STATE_FILE):
         try:
@@ -50,6 +51,7 @@ def load_state():
         logging.info("Файл state.json не найден. Используем значения по умолчанию.")
 
 def save_state():
+    """Сохраняем текущее состояние в JSON-файл."""
     data = {
         "unchangedSpinValueCount": unchangedSpinValueCount,
         "lastSentSpinValue": lastSentSpinValue,
@@ -63,30 +65,34 @@ def save_state():
     except Exception as e:
         logging.error(f"Ошибка при сохранении state.json: {e}")
 
-# Асинхронная версия функции для получения spinValue
 async def fetchSpinValue():
     """
-    Использует AsyncHTMLSession, чтобы открыть страницу
-    и получить spinValue. Если не удаётся, возвращает None.
+    Открываем страницу через AsyncHTMLSession и рендерим JS.
+    После получения результата обязательно закрываем сессию.
     """
+    asession = None
     try:
         asession = AsyncHTMLSession()
         r = await asession.get(url)
 
         # Если сайт динамически подгружает данные через JS — делаем рендер
-        await r.html.arender(timeout=60, sleep=1)  # рендерим JS (если нужно)
+        await r.html.arender(timeout=20, sleep=1)
 
         element = r.html.find(f".{className.replace(' ', '.')}", first=True)
         if element:
             spinValue = element.text.strip()
             return int(spinValue) if spinValue.isdigit() else None
-
         return None
 
     except Exception as e:
         logging.error(f"Ошибка в requests_html: {e}")
         return None
 
+    finally:
+        # Обязательно закрываем созданную сессию, чтобы избежать утечек
+        # и ошибок протокола "No session with given id"
+        if asession is not None:
+            await asession.close()
 
 async def checkConditionsAndNotify():
     global spinHistory, lastSentSpinValue, lastNotifiedSpinValue, unchangedSpinValueCount
@@ -136,6 +142,7 @@ async def checkConditionsAndNotify():
 async def sendNotification(message):
     """
     Асинхронно отправляет сообщение в Telegram.
+    С тремя попытками отправки и небольшим ожиданием между ними при ошибках.
     """
     retries = 3
     for attempt in range(retries):
@@ -162,7 +169,9 @@ async def checkConditionsAndNotifyLoop():
 
 async def main():
     load_state()
+    # Запускаем бесконечный цикл в виде фоновой задачи
     asyncio.create_task(checkConditionsAndNotifyLoop())
+    # Запускаем Telegram-бота
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
