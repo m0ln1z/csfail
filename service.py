@@ -9,6 +9,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+
 from aiogram import Bot, Dispatcher, types, Router
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.fsm.storage.memory import MemoryStorage
@@ -30,14 +31,18 @@ dp.include_router(router)
 url = "https://5cs.fail/en/wheel"
 className = "rounds-stats__color rounds-stats__color_20x"
 
-# Изначальные значения
 unchangedSpinValueCount = 0
 unchangedSpinValueThreshold = 43
 lastSentSpinValue = None
 lastNotifiedSpinValue = None
 spinHistory = []
 
-STATE_FILE = "state.json"  # в этот файл будем сохранять/читать состояние
+STATE_FILE = "state.json"
+
+# ----------------------
+# Глобальный WebDriver
+# ----------------------
+driver = None  # Храним экземпляр Selenium (Chrome) здесь
 
 
 # ----------------------------
@@ -45,7 +50,7 @@ STATE_FILE = "state.json"  # в этот файл будем сохранять/
 # ----------------------------
 def load_state():
     """
-    Загружаем состояние из state.json, если он существует.
+    Читаем состояние из state.json, если он существует.
     """
     global unchangedSpinValueCount, lastSentSpinValue, lastNotifiedSpinValue, spinHistory
     if os.path.exists(STATE_FILE):
@@ -59,14 +64,13 @@ def load_state():
             logging.info("Загружено состояние из state.json")
         except Exception as e:
             logging.error(f"Ошибка при загрузке state.json: {e}")
-            logging.info("Используем значения по умолчанию.")
     else:
-        logging.info("Файл state.json не найден, используем значения по умолчанию")
+        logging.info("Файл state.json не найден. Используем значения по умолчанию.")
 
 
 def save_state():
     """
-    Сохраняем ключевые переменные в state.json.
+    Сохраняем текущее состояние в state.json.
     """
     data = {
         "unchangedSpinValueCount": unchangedSpinValueCount,
@@ -82,13 +86,12 @@ def save_state():
         logging.error(f"Ошибка при сохранении state.json: {e}")
 
 
-# ------------------------
-# Сама логика с Selenium
-# ------------------------
-def fetchSpinValue():
+# --------------------------------
+# Функции управления WebDriver
+# --------------------------------
+def create_driver():
     """
-    Запускает headless Chrome и пытается получить spinValue на странице.
-    Если Selenium крашится, возвращает None.
+    Создаёт новый экземпляр ChromeDriver с нужными опциями и возвращает его.
     """
     chromeOptions = Options()
     chromeOptions.add_argument("--headless")
@@ -99,45 +102,89 @@ def fetchSpinValue():
     chromeOptions.add_experimental_option("excludeSwitches", ["enable-automation"])
     chromeOptions.add_experimental_option("useAutomationExtension", False)
 
+    # Отключаем картинки (для экономии ресурсов)
     prefs = {"profile.managed_default_content_settings.images": 2}
     chromeOptions.add_experimental_option("prefs", prefs)
+
     chromeOptions.add_argument("window-size=800x600")
     chromeOptions.add_argument(
-        "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36"
+        "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36"
     )
 
-    retries = 3
-    driver = None
-    for attempt in range(retries):
+    driver_instance = webdriver.Chrome(options=chromeOptions)
+    driver_instance.set_page_load_timeout(30)
+    return driver_instance
+
+
+def get_driver():
+    """
+    Возвращает актуальный WebDriver. Если он ещё не создан
+    или упал в предыдущем цикле — пересоздаём.
+    """
+    global driver
+    if driver is None:
+        logging.info("Создаём новый экземпляр ChromeDriver...")
+        driver = create_driver()
+    return driver
+
+
+def close_driver():
+    """
+    Закрывает WebDriver и освобождает память.
+    """
+    global driver
+    if driver:
+        logging.info("Закрываем WebDriver...")
         try:
-            if driver is None:
-                driver = webdriver.Chrome(options=chromeOptions)
-                driver.set_page_load_timeout(30)
-                driver.get(url)
-                logging.info("Ожидание загрузки страницы...")
-
-            element = WebDriverWait(driver, 30).until(
-                EC.presence_of_element_located(
-                    (By.CSS_SELECTOR, ".rounds-stats__color.rounds-stats__color_20x")
-                )
-            )
-
-            spinValue = element.text.strip()
-            return int(spinValue) if spinValue.isdigit() else None
-
+            driver.quit()
         except Exception as e:
-            logging.error(f"Ошибка в Selenium: {e}. Попытка {attempt + 1}/{retries}")
-            time.sleep(5)
-            if driver:
-                logging.info("Перезагружаем страницу...")
-                driver.refresh()
-                time.sleep(10)
-        finally:
-            if driver:
-                driver.quit()
-            gc.collect()
+            logging.error(f"Ошибка при закрытии WebDriver: {e}")
+        driver = None
+        gc.collect()
 
-    return None
+
+# ------------------------
+# Сама логика с Selenium
+# ------------------------
+def fetchSpinValue():
+    """
+    Использует глобальный driver, чтобы открыть страницу
+    и получить spinValue. Если не удаётся, возвращает None.
+    При критической ошибке DevToolsActivePort - "роняем" скрипт.
+    """
+    d = get_driver()  # Получаем (или создаём) driver
+
+    try:
+        # Загружаем страницу
+        d.get(url)
+        logging.info("Страница загружена, ищем элемент...")
+
+        # Ждём элемент
+        element = WebDriverWait(d, 30).until(
+            EC.presence_of_element_located(
+                (By.CSS_SELECTOR, ".rounds-stats__color.rounds-stats__color_20x")
+            )
+        )
+
+        spinValue = element.text.strip()
+        return int(spinValue) if spinValue.isdigit() else None
+
+    except Exception as e:
+        error_text = str(e)
+        logging.error(f"Ошибка в Selenium: {error_text}")
+
+        # Если это именно DevToolsActivePort file doesn't exist
+        if "DevToolsActivePort file doesn't exist" in error_text:
+            logging.error("Критическая ошибка Chrome (DevToolsActivePort)! "
+                          "Падаем, чтобы перезапуститься...")
+            close_driver()
+            # Поднимаем исключение, чтобы script упал и перезапустился в __main__
+            raise RuntimeError("Critical Selenium error (DevToolsActivePort)") from e
+
+        # Иначе - просто закрываем driver и возвращаем None
+        close_driver()
+        return None
 
 
 # -------------------------------
@@ -148,7 +195,7 @@ async def checkConditionsAndNotify():
 
     spinValue = fetchSpinValue()
     if spinValue is None:
-        return
+        return  # Не удалось получить значение (не критическая ошибка), выходим
 
     # Обновление истории (хранится только 100 последних значений)
     spinHistory.append(spinValue)
@@ -157,9 +204,17 @@ async def checkConditionsAndNotify():
 
     logging.info(f"Обновление истории спинов: {spinHistory[-10:]}")
 
-    # Условие для "повторяющегося" значения
-    if spinValue >= (lastSentSpinValue if lastSentSpinValue is not None else float('-inf')) or \
-       (lastSentSpinValue is not None and len(spinHistory) > 1 and lastSentSpinValue > spinHistory[-2]):
+    # -----------------------------------------------------------------
+    # Логика счётчика (пример исходной):
+    # Если текущее значение не меньше предыдущего -> увеличиваем счётчик
+    # Иначе сбрасываем в 0
+    # -----------------------------------------------------------------
+    if (
+        spinValue >= (lastSentSpinValue if lastSentSpinValue is not None else float('-inf'))
+        or (lastSentSpinValue is not None
+            and len(spinHistory) > 1
+            and lastSentSpinValue > spinHistory[-2])
+    ):
         unchangedSpinValueCount += 1
         logging.info(
             f"Значение {spinValue} >= предыдущего ({lastSentSpinValue}); "
@@ -167,7 +222,9 @@ async def checkConditionsAndNotify():
         )
 
         if unchangedSpinValueCount >= unchangedSpinValueThreshold:
-            alertMessage = f"Значение {spinValue} повторяется или увеличивается уже 85 раз подряд!"
+            alertMessage = (
+                f"Значение {spinValue} повторяется или увеличивается уже 85 раз подряд!"
+            )
             await sendNotification(alertMessage)
             logging.info(f"Уведомление о повторении отправлено: {alertMessage}")
             unchangedSpinValueCount = 0
@@ -193,7 +250,7 @@ async def sendNotification(message):
     Асинхронно отправляет сообщение в Telegram.
     """
     retries = 3
-    for _ in range(retries):
+    for attempt in range(retries):
         try:
             await bot.send_message(chatId, message)
             logging.info(f"Сообщение отправлено: {message}")
@@ -208,39 +265,43 @@ async def sendNotification(message):
 # --------------------
 async def checkConditionsAndNotifyLoop():
     """
-    Запускает бесконечный цикл, который раз в 30 секунд вызывает checkConditionsAndNotify().
+    Запускает бесконечный цикл, который раз в 60 секунд
+    вызывает checkConditionsAndNotify().
     """
     while True:
         try:
             await checkConditionsAndNotify()
         except Exception as e:
+            # Если вдруг какая-то ошибка не словилась внутри,
+            # то логируем и закрываем драйвер (на всякий случай).
             logging.error(f"Ошибка в цикле: {e}")
-        await asyncio.sleep(30)
+            close_driver()
+            # Если хотим, чтобы при любой Exception падал весь скрипт,
+            # можем "пробросить" исключение дальше:
+            # raise
+
+        # Интервал между запросами
+        await asyncio.sleep(60)
 
 
 async def main():
     """
     Стартует бота (aiogram) и фоновую задачу checkConditionsAndNotifyLoop().
     """
-    # Загружаем состояние из state.json (если есть)
+    # При каждом запуске скрипта (после краша) - загружаем состояние:
     load_state()
 
-    # Стартуем фоновую задачу
+    # Стартуем фоновую задачу проверки
     asyncio.create_task(checkConditionsAndNotifyLoop())
 
     # Запускаем aiogram-поллинг
     await dp.start_polling(bot)
 
 
-# ---------------
-# Точка входа
-# ---------------
 if __name__ == "__main__":
     import sys
 
-    # Обернём запуск в цикл перезапусков:
-    # Если вдруг Selenium упал, скрипт "выйдет" и мы попробуем его перезапустить.
-    # В Docker/production обычно полагаются на supervisor / systemd / --restart=always.
+    # Цикл перезапуска (если упадёт вообще весь скрипт)
     while True:
         try:
             if sys.version_info >= (3, 8):
