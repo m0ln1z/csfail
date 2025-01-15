@@ -33,7 +33,7 @@ url = "https://5cs.fail/en/wheel"
 className = "rounds-stats__color rounds-stats__color_20x"
 
 unchangedSpinValueCount = 0
-unchangedSpinValueThreshold = 35
+unchangedSpinValueThreshold = 36
 lastSentSpinValue = None
 lastNotifiedSpinValue = None
 valueBlueCount = 0
@@ -270,11 +270,12 @@ async def checkConditionsAndNotify():
             logging.info(f"Счётчик Blue сброшен")
         lastBlueValue = valueBlue
 
-        if valueBlueCount >= 7 and valueBlue != lastNotifiedBlueValue:
-            message = f"Синяя (valueBlue) не выпадала 12 спинов подряд!"
+        if valueBlueCount >= 8 and valueBlue != lastNotifiedBlueValue:
+            message = f"Синяя не выпадала 12 спинов подряд!"
             await sendNotification(message)
             lastNotifiedBlueValue = valueBlue
             logging.info(f"Уведомление отправлено: {message}")
+            valueBlueCount = 0  # Сброс счетчика после уведомления
 
     # Обновление счётчика для valueGreen
     if valueGreen is not None:
@@ -287,10 +288,11 @@ async def checkConditionsAndNotify():
         lastGreenValue = valueGreen
 
         if valueGreenCount >= 5 and valueGreen != lastNotifiedGreenValue:
-            message = f"Зелёная (valueGreen) не выпадала 10 спинов подряд!"
+            message = f"Зелёная не выпадала 10 спинов подряд!"
             await sendNotification(message)
             lastNotifiedGreenValue = valueGreen
             logging.info(f"Уведомление отправлено: {message}")
+            valueGreenCount = 0  # Сброс счетчика после уведомления
 
     # Обновление счётчика для valuePurple
     if valuePurple is not None:
@@ -303,10 +305,11 @@ async def checkConditionsAndNotify():
         lastPurpleValue = valuePurple
 
         if valuePurpleCount >= 5 and valuePurple != lastNotifiedPurpleValue:
-            message = f"Фиолетовая (valuePurple) не выпадала 10 спинов подряд!"
+            message = f"Фиолетовая не выпадала 10 спинов подряд!"
             await sendNotification(message)
             lastNotifiedPurpleValue = valuePurple
             logging.info(f"Уведомление отправлено: {message}")
+            valuePurpleCount = 0  # Сброс счетчика после уведомления
 
     # Обработка для основного значения (20x)
     if spinValue is not None:
@@ -324,7 +327,7 @@ async def checkConditionsAndNotify():
 
             if unchangedSpinValueCount >= unchangedSpinValueThreshold:
                 alertMessage = (
-                    f"Сейчас {spinValue} за 100 раундов, не выпадала уже более 85 раз подряд!"
+                    f"Последняя золотая (35х) была 85 спинов назад"
                 )
                 await sendNotification(alertMessage)
                 logging.info(f"Уведомление о повторении отправлено: {alertMessage}")
