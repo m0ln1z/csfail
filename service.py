@@ -223,7 +223,7 @@ async def checkConditionsAndNotify():
 
         if unchangedSpinValueCount >= unchangedSpinValueThreshold:
             alertMessage = (
-                f"Значение {spinValue} повторяется уже 85 раз подряд!"
+                f"Сейчас {spinValue} за 100 раундов, не выпадала уже более 85 раз подряд!"
             )
             await sendNotification(alertMessage)
             logging.info(f"Уведомление о повторении отправлено: {alertMessage}")
@@ -231,8 +231,7 @@ async def checkConditionsAndNotify():
     else:
         unchangedSpinValueCount = 0
 
-    # Уведомление о текущем значении
-    if spinValue != lastNotifiedSpinValue:
+    if spinValue <= 2 and spinValue != lastNotifiedSpinValue:
         message = f"{spinValue} золотых за последние 100 спинов"
         await sendNotification(message)
         lastNotifiedSpinValue = spinValue
