@@ -1,5 +1,4 @@
-name: Deploy Selenium Bot
-
+name: Deploy Notification Bot
 on:
   push:
     branches:
