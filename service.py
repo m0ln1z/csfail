@@ -29,9 +29,8 @@ logging.basicConfig(
     ]
 )
 
-botToken = "7381459756:AAFcqXCJtFjx-PJpDSVL4Wcs3543nltkzG8"
-chatId = "-4751196447"
-
+botToken = os.getenv("7381459756:AAFcqXCJtFjx-PJpDSVL4Wcs3543nltkzG8")
+chatId = os.getenv("-4751196447")
 
 bot = Bot(token=botToken, session=AiohttpSession(timeout=60))
 storage = MemoryStorage()
@@ -280,8 +279,8 @@ async def checkConditionsAndNotify():
     global missing2xCount, missing3xCount, missing4xCount
     global lastNotified2x, lastNotified3x, lastNotified4x
 
-    # Получаем все значения спинов и наличие классов 2x, 3x, 4x
-    spin_values = fetchSpinValues()
+    loop = asyncio.get_running_loop()
+    spin_values = await loop.run_in_executor(None, fetchSpinValues)
     if spin_values is None:
         return  # Не удалось получить значения (не критическая ошибка), выходим
 
@@ -436,30 +435,31 @@ async def main():
     """
     Стартует бота (aiogram) и фоновую задачу checkConditionsAndNotifyLoop().
     """
-    # При каждом запуске скрипта (после краша) - загружаем состояние:
-    load_state()
+    try:
+        # При каждом запуске скрипта (после краша) - загружаем состояние:
+        load_state()
 
-    # Настраиваем обработчики
-    setup_handlers()
+        # Настраиваем обработчики
+        setup_handlers()
 
-    # Стартуем фоновую задачу проверки
-    asyncio.create_task(checkConditionsAndNotifyLoop())
+        # Стартуем фоновую задачу проверки
+        asyncio.create_task(checkConditionsAndNotifyLoop())
 
-    # Запускаем aiogram-поллинг
-    await dp.start_polling(bot)
+        # Запускаем aiogram-поллинг
+        await dp.start_polling(bot)
+    except Exception as e:
+        logging.error(f"Скрипт упал с ошибкой: {e}. Перезапускаем через 10 секунд.")
+        close_driver()
+        await asyncio.sleep(10)
+        await main()
 
 if __name__ == "__main__":
     import sys
 
-    # Цикл перезапуска (если упадёт вообще весь скрипт)
-    while True:
-        try:
-            if sys.version_info >= (3, 8):
-                asyncio.run(main())
-            else:
-                loop = asyncio.get_event_loop()
-                loop.run_until_complete(main())
-        except Exception as e:
-            logging.error(f"Скрипт упал с ошибкой: {e}. Перезапускаем через 10 секунд.")
-            close_driver()
-            time.sleep(10)
+    # Запуск основного асинхронного цикла
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logging.info("Скрипт остановлен вручную.")
+    except Exception as e:
+        logging.error(f"Непредвиденная ошибка: {e}")
