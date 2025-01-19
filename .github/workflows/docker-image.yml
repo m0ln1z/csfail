@@ -14,12 +14,12 @@ jobs:
         bot:
           - name: 35x
             image: m0ln1z/selenium-bot-35x
-            bot_token: BOT_TOKEN
-            chat_id: CHAT_ID
+            bot_token_secret: BOT_TOKEN
+            chat_id_secret: CHAT_ID
           - name: 234x
             image: m0ln1z/selenium-bot-234x
-            bot_token: BOT_TOKEN_234X
-            chat_id: CHAT_ID_234X
+            bot_token_secret: BOT_TOKEN_234X
+            chat_id_secret: CHAT_ID_234X
 
     steps:
       # 1. Клонирование репозитория
@@ -89,6 +89,6 @@ jobs:
               --memory-swap=2g \
               --cpus=2 \
               --shm-size=256m \
-              -e BOT_TOKEN='${{ secrets[matrix.bot.bot_token] }}' \
-              -e CHAT_ID='${{ secrets[matrix.bot.chat_id] }}' \
+              -e BOT_TOKEN='${{ secrets[matrix.bot.bot_token_secret] }}' \
+              -e CHAT_ID='${{ secrets[matrix.bot.chat_id_secret] }}' \
               ${{ matrix.bot.image }}:${{ env.DOCKER_TAG }}
