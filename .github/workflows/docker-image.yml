@@ -13,12 +13,12 @@ jobs:
       matrix:
         bot:
           - name: 35x
-            image: m0ln1z/selenium-bot-35x
+            image: selenium-bot-35xx
             bot_script: bot_35x.py
             bot_token_secret: BOT_TOKEN
             chat_id_secret: CHAT_ID
           - name: 234x
-            image: m0ln1z/selenium-bot-234x
+            image: selenium-bot-234xx
             bot_script: bot_234x.py
             bot_token_secret: BOT_TOKEN_234X
             chat_id_secret: CHAT_ID_234X
@@ -74,9 +74,6 @@ jobs:
             else
                 echo "Docker уже установлен."
             fi
-
-            # Логин в Docker Hub
-            echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "m0ln1z" --password-stdin
 
             # Пулл обновлённого образа
             docker pull m0ln1z/${{ matrix.bot.image }}:${{ env.DOCKER_TAG }}
