@@ -47,7 +47,7 @@ jobs:
           docker build --build-arg BOT_SCRIPT=${{ matrix.bot.bot_script }} -t "m0ln1z/${{ matrix.bot.image }}:${{ env.DOCKER_TAG }}" .
           docker push "m0ln1z/${{ matrix.bot.image }}:${{ env.DOCKER_TAG }}"
 
-      # 5. Деплой на сервер с использованием SSH-пароля
+      # 5. Деплой на сервер через SSH
       - name: Deploy to server
         uses: appleboy/ssh-action@v0.1.5
         with:
@@ -69,17 +69,28 @@ jobs:
                 echo "Docker уже установлен."
             fi
 
+            # Аутентификация в Docker Hub
+            echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "m0ln1z" --password-stdin
+
             # Пулл обновлённого образа
-            docker pull m0ln1z/${{ matrix.bot.image }}:${{ env.DOCKER_TAG }}
+            echo "Pulling the Docker image..."
+            if docker pull m0ln1z/${{ matrix.bot.image }}:${{ env.DOCKER_TAG }}; then
+                echo "Image pulled successfully."
+            else
+                echo "Failed to pull image."
+                exit 1
+            fi
 
             # Проверка успешного пулла
-            docker images | grep "m0ln1z/${{ matrix.bot.image }}:${{ env.DOCKER_TAG }}" && echo "Image pulled successfully." || { echo "Failed to pull image."; exit 1; }
+            docker images | grep "m0ln1z/${{ matrix.bot.image }}:${{ env.DOCKER_TAG }}" || { echo "Image not found after pull."; exit 1; }
 
             # Остановка и удаление старого контейнера
-            docker stop selenium-bot-${{ matrix.bot.name }} || docker kill selenium-bot-${{ matrix.bot.name }} || true
-            docker rm -f selenium-bot-${{ matrix.bot.name }} || true
+            echo "Stopping and removing old container..."
+            docker stop selenium-bot-${{ matrix.bot.name }} || true
+            docker rm selenium-bot-${{ matrix.bot.name }} || true
 
-            # Запуск нового контейнера с передачей переменных окружения
+            # Запуск нового контейнера
+            echo "Starting new container..."
             docker run -d \
               --name selenium-bot-${{ matrix.bot.name }} \
               --restart=unless-stopped \
