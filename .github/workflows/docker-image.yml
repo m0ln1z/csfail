@@ -9,11 +9,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Клонирование репозитория
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # 2. Формирование тега Docker-образа на основе короткого SHA коммита
       - name: Set Docker image tag
         id: set_tag
         run: |
@@ -21,7 +19,6 @@ jobs:
           echo "DOCKER_TAG=${TAG}" >> $GITHUB_ENV
           echo "Docker tag set to ${TAG}"
 
-      # 3. Логин в Docker Hub
       - name: Login to Docker Hub
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
@@ -29,13 +26,19 @@ jobs:
         run: |
           echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
 
-      # 4. Сборка и пуш Docker-образа
+      - name: Clear Docker cache
+        run: |
+          docker system prune -a -f
+
       - name: Build and push Docker image
         run: |
+          echo "Проверяем содержимое директории:"
+          ls -la
+          echo "Содержимое Dockerfile:"
+          cat Dockerfile
           docker build -t "m0ln1z/selenium-bot:${{ env.DOCKER_TAG }}" .
           docker push "m0ln1z/selenium-bot:${{ env.DOCKER_TAG }}"
 
-      # 5. Деплой на сервер
       - name: Deploy to server
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
@@ -48,37 +51,9 @@ jobs:
           CHAT_ID_234X: ${{ secrets.CHAT_ID_234X }}
         run: |
           sshpass -p "${SSH_PASSWORD}" ssh -o StrictHostKeyChecking=no ${SSH_USER}@${SSH_HOST} "
-          echo 'Установка Docker (если не установлен) из официального репозитория...' &&
-          sudo apt-get update &&
-          sudo apt-get remove -y docker docker-engine docker.io containerd runc || true &&
-          sudo apt-get install -y ca-certificates curl gnupg lsb-release &&
-
-          sudo mkdir -p /etc/apt/keyrings &&
-          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg &&
-
-          echo \"deb [arch=\$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \$(lsb_release -cs) stable\" \
-            | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null &&
-
-          sudo apt-get update &&
-          sudo apt-get install -y docker-ce docker-ce-cli containerd.io &&
-          sudo systemctl start docker &&
-          sudo systemctl enable docker &&
-
-          echo 'Логин в Docker Hub...' &&
-          docker login -u '${{ secrets.DOCKER_USERNAME }}' -p '${{ secrets.DOCKER_PASSWORD }}' &&
-
-          echo 'Загрузка обновлённого образа...' &&
           docker pull m0ln1z/selenium-bot:${DOCKER_TAG} &&
-
-          echo 'Остановка старого контейнера...' &&
           docker stop selenium-bot || docker kill selenium-bot || true &&
-
-          sleep 3 &&
-
-          echo 'Удаление старого контейнера...' &&
           docker rm -f selenium-bot || true &&
-
-          echo 'Запуск нового контейнера...' &&
           docker run -d \
             --name selenium-bot \
             --restart=always \
