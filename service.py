@@ -38,7 +38,7 @@ chatId_other = os.getenv("CHAT_ID_234X")
 bot_35x = Bot(token=botToken_35x, session=AiohttpSession(timeout=60))
 bot_other = Bot(token=botToken_other, session=AiohttpSession(timeout=60))
 
-bot = Bot(token=botToken, session=AiohttpSession(timeout=60))
+# Удаляем создание основного бота и используем bot_35x для диспетчера
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 router = Router()
@@ -461,8 +461,8 @@ async def main():
         # Стартуем фоновую задачу проверки
         asyncio.create_task(checkConditionsAndNotifyLoop())
 
-        # Запускаем aiogram-поллинг
-        await dp.start_polling(bot)
+        # Запускаем aiogram-поллинг с bot_35x вместо bot
+        await dp.start_polling(bot_35x)
     except Exception as e:
         logging.error(f"Скрипт упал с ошибкой: {e}. Перезапускаем через 10 секунд.")
         close_driver()
