@@ -44,7 +44,8 @@ jobs:
       - name: Authenticate with Docker Hub
         id: docker_auth
         run: |
-          RESPONSE=$(curl -s -H "Content-Type: application/json" -X POST -d '{"username": "${{ secrets.DOCKER_USERNAME }}", "password": "${{ secrets.DOCKER_ACCESS_TOKEN }}"}' https://hub.docker.com/v2/users/login/)
+          RESPONSE=$(curl -s -H "Content-Type: application/json" -X POST -d "{\"username\": \"${{ secrets.DOCKER_USERNAME }}\", \"password\": \"${{ secrets.DOCKER_ACCESS_TOKEN }}\"}" https://hub.docker.com/v2/users/login/)
+          echo "Response: $RESPONSE" # Временный шаг для отладки
           TOKEN=$(echo $RESPONSE | jq -r .token)
           if [ "$TOKEN" == "null" ] || [ -z "$TOKEN" ]; then
             echo "Failed to obtain Docker Hub token."
@@ -65,9 +66,8 @@ jobs:
           
           if [ "$RESPONSE" -ne 200 ]; then
             echo "Repository $REPO_NAME does not exist. Creating it..."
-            CREATE_RESPONSE=$(curl -s -X POST -H "Content-Type: application/json" -H "Authorization: JWT $DOCKER_JWT_TOKEN" -d '{"namespace": "m0ln1z", "name": "'$REPO_NAME'", "description": "Docker image for '$REPO_NAME'", "is_private": false}' https://hub.docker.com/v2/repositories/)
-            
-            if echo "$CREATE_RESPONSE" | grep -q '"name": "'$REPO_NAME'"'; then
+            CREATE_RESPONSE=$(curl -s -X POST -H "Content-Type: application/json" -H "Authorization: JWT $DOCKER_JWT_TOKEN" -d "{\"namespace\": \"m0ln1z\", \"name\": \"${REPO_NAME}\", \"description\": \"Docker image for ${REPO_NAME}\", \"is_private\": false}" https://hub.docker.com/v2/repositories/)
+            if echo "$CREATE_RESPONSE" | grep -q "\"name\": \"${REPO_NAME}\""; then
               echo "Repository $REPO_NAME created successfully."
             else
               echo "Failed to create repository $REPO_NAME. Response: $CREATE_RESPONSE"
@@ -80,7 +80,7 @@ jobs:
       # 6. Логин в Docker Hub через CLI (для совместимости с Docker CLI)
       - name: Login to Docker Hub via CLI
         run: |
-          echo ${{ env.DOCKER_JWT_TOKEN }} | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
+          echo "${{ env.DOCKER_JWT_TOKEN }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
       # 7. Сборка и пуш Docker-образа с указанным скриптом бота
       - name: Build and push Docker image
