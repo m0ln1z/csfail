@@ -16,30 +16,30 @@ RUN apt-get update && \
         x11-utils \
         xauth \
         wget \
-        unzip && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# Устанавливаем переменные для версий Chromium и ChromeDriver
-ENV CHROME_VERSION=132.0.6834.83
-ENV CHROMEDRIVER_VERSION=132.0.6834.83
-
-# Загрузка и установка ChromeDriver
-RUN wget -O /tmp/chromedriver.zip https://chromedriver.storage.googleapis.com/${CHROMEDRIVER_VERSION}/chromedriver_linux64.zip && \
-    unzip /tmp/chromedriver.zip -d /usr/local/bin/ && \
-    rm /tmp/chromedriver.zip && \
-    chmod +x /usr/local/bin/chromedriver && \
-    apt-get remove -y unzip wget && \
-    apt-get autoremove -y && \
+        unzip \
+        curl && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Устанавливаем рабочую директорию
 WORKDIR /app
 
-# Копируем файлы проекта
+# Копируем файлы проекта в контейнер
 COPY . /app
 
 # Устанавливаем зависимости Python
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Определяем версии Chromium и ChromeDriver динамически
+RUN CHROME_VERSION=$(chromium --version | grep -oP '\d+\.\d+\.\d+\.\d+') && \
+    CHROME_MAJOR=$(echo $CHROME_VERSION | cut -d. -f1) && \
+    CHROMEDRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_MAJOR}") && \
+    wget -O /tmp/chromedriver.zip https://chromedriver.storage.googleapis.com/${CHROMEDRIVER_VERSION}/chromedriver_linux64.zip && \
+    unzip /tmp/chromedriver.zip -d /usr/local/bin/ && \
+    rm /tmp/chromedriver.zip && \
+    chmod +x /usr/local/bin/chromedriver && \
+    apt-get remove -y unzip wget curl && \
+    apt-get autoremove -y && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Указываем команду запуска — просто Python-скрипт
 CMD ["python", "service.py"]
