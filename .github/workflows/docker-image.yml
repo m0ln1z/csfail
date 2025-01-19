@@ -15,8 +15,8 @@ jobs:
           - name: 35x
             image: m0ln1z/selenium-bot-35x
             bot_script: bot_35x.py
-            bot_token_secret: BOT_TOKEN_35X
-            chat_id_secret: CHAT_ID_35X
+            bot_token_secret: BOT_TOKEN
+            chat_id_secret: CHAT_ID
           - name: 234x
             image: m0ln1z/selenium-bot-234x
             bot_script: bot_234x.py
