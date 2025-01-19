@@ -37,6 +37,10 @@ jobs:
           push: true
           tags: "m0ln1z/selenium-bot-35x:${{ env.DOCKER_TAG_35X }}"
 
+      # 4.1. Установка sshpass
+      - name: Install sshpass
+        run: sudo apt-get update && sudo apt-get install -y sshpass
+
       # 5. Деплой на сервер для 35x бота
       - name: Deploy 35x bot to server
         env:
@@ -44,8 +48,8 @@ jobs:
           SSH_USER: ${{ secrets.SSH_USER }}
           SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
           DOCKER_TAG_35X: ${{ env.DOCKER_TAG_35X }}
-          BOT_TOKEN_35X: ${{ secrets.BOT_TOKEN}}
-          CHAT_ID_35X: ${{ secrets.CHAT_ID}}
+          BOT_TOKEN_35X: ${{ secrets.BOT_TOKEN }}
+          CHAT_ID_35X: ${{ secrets.CHAT_ID }}
         run: |
           sshpass -p "${SSH_PASSWORD}" ssh -o StrictHostKeyChecking=no ${SSH_USER}@${SSH_HOST} "
           # Проверка наличия Docker
@@ -124,6 +128,10 @@ jobs:
           context: .
           push: true
           tags: "m0ln1z/selenium-bot-234x:${{ env.DOCKER_TAG_234X }}"
+
+      # 4.1. Установка sshpass
+      - name: Install sshpass
+        run: sudo apt-get update && sudo apt-get install -y sshpass
 
       # 5. Деплой на сервер для 2x,3x,4x бота
       - name: Deploy 2x,3x,4x bot to server
