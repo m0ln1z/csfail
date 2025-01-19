@@ -1,4 +1,5 @@
 name: Deploy Notification Bot
+
 on:
   push:
     branches:
@@ -23,45 +24,43 @@ jobs:
 
       # 3. Логин в Docker Hub
       - name: Login to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+        run: |
+          echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
 
       # 4. Сборка и пуш Docker-образа
       - name: Build and push Docker image
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          push: true
-          tags: "m0ln1z/selenium-bot:${{ env.DOCKER_TAG }}"
+        run: |
+          docker build -t "m0ln1z/selenium-bot:${{ env.DOCKER_TAG }}" .
+          docker push "m0ln1z/selenium-bot:${{ env.DOCKER_TAG }}"
 
-      # 5. Настройка SSH для деплоя
-      - name: Set up SSH
-        uses: webfactory/ssh-agent@v0.7.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-
-      # 6. Деплой на сервер
+      # 5. Деплой на сервер
       - name: Deploy to server
         env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
           DOCKER_TAG: ${{ env.DOCKER_TAG }}
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
         run: |
-          ssh -o StrictHostKeyChecking=no ${SSH_USER}@${SSH_HOST} "
-          echo 'Проверка наличия Docker...' &&
+          sshpass -p "${SSH_PASSWORD}" ssh -o StrictHostKeyChecking=no ${SSH_USER}@${SSH_HOST} "
+          # Проверка наличия Docker
           if ! command -v docker &> /dev/null
           then
               echo 'Docker не установлен. Устанавливаем Docker...' &&
               sudo apt-get update &&
               sudo apt-get remove -y docker docker-engine docker.io containerd runc || true &&
               sudo apt-get install -y ca-certificates curl gnupg lsb-release &&
-          
+              
               sudo mkdir -p /etc/apt/keyrings &&
               curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg &&
-          
+              
               echo \"deb [arch=\$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \$(lsb_release -cs) stable\" \
                 | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null &&
-          
+              
               sudo apt-get update &&
               sudo apt-get install -y docker-ce docker-ce-cli containerd.io &&
               sudo systemctl start docker &&
@@ -70,30 +69,25 @@ jobs:
               echo 'Docker уже установлен.'
           fi &&
           
-          echo 'Логин в Docker Hub...' &&
-          echo '${{ secrets.DOCKER_PASSWORD }}' | sudo docker login -u '${{ secrets.DOCKER_USERNAME }}' --password-stdin &&
+          # Логин в Docker Hub
+          echo '${{ secrets.DOCKER_PASSWORD }}' | docker login -u '${{ secrets.DOCKER_USERNAME }}' --password-stdin &&
           
-          echo 'Загрузка обновлённого образа...' &&
-          sudo docker pull m0ln1z/selenium-bot:${DOCKER_TAG} &&
+          # Пулл обновлённого образа
+          docker pull m0ln1z/selenium-bot:${DOCKER_TAG} &&
           
-          echo 'Остановка старого контейнера...' &&
-          sudo docker stop selenium-bot || sudo docker kill selenium-bot || true &&
+          # Остановка и удаление старого контейнера
+          docker stop selenium-bot || docker kill selenium-bot || true &&
+          docker rm -f selenium-bot || true &&
           
-          # Даём Docker время корректно завершить контейнер
-          sleep 3 &&
-          
-          echo 'Удаление старого контейнера...' &&
-          sudo docker rm -f selenium-bot || true &&
-          
-          echo 'Запуск нового контейнера...' &&
-          sudo docker run -d \
+          # Запуск нового контейнера с передачей переменных окружения
+          docker run -d \
             --name selenium-bot \
             --restart=unless-stopped \
             --memory=2g \
             --memory-swap=2g \
             --cpus=2 \
             --shm-size=256m \
-            -e BOT_TOKEN='${{ secrets.BOT_TOKEN }}' \
-            -e CHAT_ID='${{ secrets.CHAT_ID }}' \
+            -e BOT_TOKEN='${BOT_TOKEN}' \
+            -e CHAT_ID='${CHAT_ID}' \
             m0ln1z/selenium-bot:${DOCKER_TAG}
           "
