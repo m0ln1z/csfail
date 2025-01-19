@@ -81,8 +81,13 @@ jobs:
                 exit 1
             fi
 
-            # Проверка успешного пулла
-            docker images | grep "m0ln1z/${{ matrix.bot.image }}:${{ env.DOCKER_TAG }}" || { echo "Image not found after pull."; exit 1; }
+            # Надёжная проверка наличия образа
+            if docker inspect --type=image m0ln1z/${{ matrix.bot.image }}:${{ env.DOCKER_TAG }} > /dev/null 2>&1; then
+                echo "Image exists locally."
+            else
+                echo "Image not found after pull."
+                exit 1
+            fi
 
             # Остановка и удаление старого контейнера
             echo "Stopping and removing old container..."
