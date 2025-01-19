@@ -36,12 +36,10 @@ jobs:
           echo "DOCKER_TAG=${TAG}" >> $GITHUB_ENV
           echo "Docker tag set to ${TAG}"
 
-      # 3. Аутентификация в Docker Hub с использованием официального Docker Login Action
+      # 3. Аутентификация в Docker Hub с использованием пароля
       - name: Log in to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD}}
+        run: |
+          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
       # 4. Сборка и пуш Docker-образа с указанным скриптом бота
       - name: Build and push Docker image
@@ -77,11 +75,8 @@ jobs:
                 echo "Docker уже установлен."
             fi
 
-            # Проверка Docker версии
-            docker --version
-
             # Логин в Docker Hub
-            printf "%s" "${{ secrets.DOCKER_ACCESS_TOKEN }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+            echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
             # Пулл обновлённого образа
             docker pull ${{ matrix.bot.image }}:${{ env.DOCKER_TAG }}
