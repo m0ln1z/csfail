@@ -9,6 +9,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager  # Добавлено
 
 from aiogram import Bot, Dispatcher, types, Router
 from aiogram.filters import Command
@@ -18,10 +20,18 @@ from aiogram.fsm.storage.memory import MemoryStorage
 # ---------------------
 # Глобальные переменные
 # ---------------------
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("app.log"),
+        logging.StreamHandler()
+    ]
+)
 
 botToken = "7381459756:AAFcqXCJtFjx-PJpDSVL4Wcs3543nltkzG8"
 chatId = "-4751196447"
+
 
 bot = Bot(token=botToken, session=AiohttpSession(timeout=60))
 storage = MemoryStorage()
@@ -33,19 +43,25 @@ url = "https://5cs.fail/en/wheel"
 className = "rounds-stats__color rounds-stats__color_20x"
 
 unchangedSpinValueCount = 0
-unchangedSpinValueThreshold = 36
+unchangedSpinValueThreshold = 85
 lastSentSpinValue = None
 lastNotifiedSpinValue = None
-valueBlueCount = 0
-valueGreenCount = 0
-valuePurpleCount = 0
-lastBlueValue = None
-lastGreenValue = None
-lastPurpleValue = None
-lastNotifiedBlueValue = None
-lastNotifiedGreenValue = None
-lastNotifiedPurpleValue = None
 spinHistory = []
+
+# Новые счетчики для отслеживания отсутствия 2x, 3x, 4x
+missing2xCount = 0
+missing3xCount = 0
+missing4xCount = 0
+
+# Пороги для уведомлений
+missing2xThreshold = 12
+missing3xThreshold = 10
+missing4xThreshold = 10
+
+# Последние уведомленные значения
+lastNotified2x = None
+lastNotified3x = None
+lastNotified4x = None
 
 STATE_FILE = "state.json"
 
@@ -62,9 +78,8 @@ def load_state():
     Читаем состояние из state.json, если он существует.
     """
     global unchangedSpinValueCount, lastSentSpinValue, lastNotifiedSpinValue, spinHistory
-    global valueBlueCount, valueGreenCount, valuePurpleCount
-    global lastBlueValue, lastGreenValue, lastPurpleValue
-    global lastNotifiedBlueValue, lastNotifiedGreenValue, lastNotifiedPurpleValue
+    global missing2xCount, missing3xCount, missing4xCount
+    global lastNotified2x, lastNotified3x, lastNotified4x
 
     if os.path.exists(STATE_FILE):
         try:
@@ -74,21 +89,21 @@ def load_state():
             lastSentSpinValue = data.get("lastSentSpinValue", None)
             lastNotifiedSpinValue = data.get("lastNotifiedSpinValue", None)
             spinHistory = data.get("spinHistory", [])
-            valueBlueCount = data.get("valueBlueCount", 0)
-            valueGreenCount = data.get("valueGreenCount", 0)
-            valuePurpleCount = data.get("valuePurpleCount", 0)
-            lastBlueValue = data.get("lastBlueValue", None)
-            lastGreenValue = data.get("lastGreenValue", None)
-            lastPurpleValue = data.get("lastPurpleValue", None)
-            lastNotifiedBlueValue = data.get("lastNotifiedBlueValue", None)
-            lastNotifiedGreenValue = data.get("lastNotifiedGreenValue", None)
-            lastNotifiedPurpleValue = data.get("lastNotifiedPurpleValue", None)
+
+            # Загрузка новых счетчиков
+            missing2xCount = data.get("missing2xCount", 0)
+            missing3xCount = data.get("missing3xCount", 0)
+            missing4xCount = data.get("missing4xCount", 0)
+
+            lastNotified2x = data.get("lastNotified2x", None)
+            lastNotified3x = data.get("lastNotified3x", None)
+            lastNotified4x = data.get("lastNotified4x", None)
+
             logging.info("Загружено состояние из state.json")
         except Exception as e:
             logging.error(f"Ошибка при загрузке state.json: {e}")
     else:
         logging.info("Файл state.json не найден. Используем значения по умолчанию.")
-
 
 def save_state():
     """
@@ -99,15 +114,12 @@ def save_state():
         "lastSentSpinValue": lastSentSpinValue,
         "lastNotifiedSpinValue": lastNotifiedSpinValue,
         "spinHistory": spinHistory,
-        "valueBlueCount": valueBlueCount,
-        "valueGreenCount": valueGreenCount,
-        "valuePurpleCount": valuePurpleCount,
-        "lastBlueValue": lastBlueValue,
-        "lastGreenValue": lastGreenValue,
-        "lastPurpleValue": lastPurpleValue,
-        "lastNotifiedBlueValue": lastNotifiedBlueValue,
-        "lastNotifiedGreenValue": lastNotifiedGreenValue,
-        "lastNotifiedPurpleValue": lastNotifiedPurpleValue,
+        "missing2xCount": missing2xCount,
+        "missing3xCount": missing3xCount,
+        "missing4xCount": missing4xCount,
+        "lastNotified2x": lastNotified2x,
+        "lastNotified3x": lastNotified3x,
+        "lastNotified4x": lastNotified4x,
     }
     try:
         with open(STATE_FILE, "w") as f:
@@ -142,10 +154,16 @@ def create_driver():
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36"
     )
 
-    driver_instance = webdriver.Chrome(options=chromeOptions)
-    driver_instance.set_page_load_timeout(30)
-    return driver_instance
-
+    try:
+        # Используем webdriver-manager для автоматической установки ChromeDriver
+        service = Service(ChromeDriverManager().install())
+        driver_instance = webdriver.Chrome(service=service, options=chromeOptions)
+        logging.info("ChromeDriver успешно запущен")
+        driver_instance.set_page_load_timeout(30)
+        return driver_instance
+    except Exception as e:
+        logging.error(f"Не удалось запустить ChromeDriver: {e}")
+        raise
 
 def get_driver():
     """
@@ -158,7 +176,6 @@ def get_driver():
         driver = create_driver()
     return driver
 
-
 def close_driver():
     """
     Закрывает WebDriver и освобождает память.
@@ -168,6 +185,7 @@ def close_driver():
         logging.info("Закрываем WebDriver...")
         try:
             driver.quit()
+            logging.info("WebDriver закрыт успешно.")
         except Exception as e:
             logging.error(f"Ошибка при закрытии WebDriver: {e}")
         driver = None
@@ -179,7 +197,7 @@ def close_driver():
 def fetchSpinValues(retries=3, delay=5):
     """
     Использует глобальный driver, чтобы открыть страницу
-    и получить значения spinValue для нескольких классов.
+    и получить значения spinValue для основного класса и классов 2x, 3x, 4x внутри <div data-swiper-slide-index="0">.
     Возвращает словарь с результатами. Если не удаётся — None.
     В случае получения нулевых значений, пытается перезапросить страницу.
     """
@@ -191,37 +209,59 @@ def fetchSpinValues(retries=3, delay=5):
             d.get(url)
             logging.info(f"Страница загружена, ищем элементы... (Попытка {attempt})")
 
-            # Ждём элементы
+            # Ждём основной элемент для 20x
             wait = WebDriverWait(d, 30)
-            classes = [
-                "rounds-stats__color rounds-stats__color_20x",
-                "rounds-stats__color rounds-stats__color_2x",
-                "rounds-stats__color rounds-stats__color_3x",
-                "rounds-stats__color rounds-stats__color_5x",
-            ]
-
+            main_element = wait.until(EC.presence_of_element_located(
+                (By.CSS_SELECTOR, '.rounds-stats__color.rounds-stats__color_20x')
+            ))
+            main_value_text = main_element.text.strip()
             spin_values = {}
-            for class_name in classes:
-                try:
-                    element = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, f".{class_name.replace(' ', '.')}")))
-                    value = element.text.strip()
-                    spin_values[class_name] = int(value) if value.isdigit() else None
-                except Exception as e:
-                    logging.warning(f"Не удалось найти элемент для {class_name}: {e}")
-                    spin_values[class_name] = None
+            spin_values['20x'] = int(main_value_text) if main_value_text.isdigit() else None
+            logging.info(f"Основное значение 20x найдено: {spin_values['20x']}")
 
-            # Проверяем, есть ли нулевые значения
-            if all(v == 0 or v is None for v in spin_values.values()):
-                logging.warning("Все полученные значения равны нулю или отсутствуют. Пытаемся перезапросить страницу.")
-                raise ValueError("Получены некорректные нулевые значения.")
-            
-            # Если данные корректны, возвращаем их
+            # Проверяем, является ли значение 20x нулевым или отсутствующим
+            if spin_values['20x'] is None:
+                logging.warning("Основное значение 20x отсутствует. Пытаемся перезапросить страницу.")
+                raise ValueError("Получено некорректное значение 20x.")
+
+            # Теперь ищем родительский div с data-swiper-slide-index="0"
+            parent_div = wait.until(EC.presence_of_element_located(
+                (By.CSS_SELECTOR, 'div[data-swiper-slide-index="0"]')
+            ))
+            logging.info("Родительский div с data-swiper-slide-index='0' найден.")
+
+            # Ищем элементы для 2x, 3x, 4x внутри parent_div
+            # Предполагается, что элементы имеют классы 'game_2x', 'game_3x', 'game_4x'
+            # Замените селекторы ниже на реальные классы, если они отличаются
+
+            game_presence = {
+                '2x': False,
+                '3x': False,
+                '4x': False,
+            }
+
+            # Ищем все элементы <a> с классом, содержащим 'game_'
+            game_elements = parent_div.find_elements(By.CSS_SELECTOR, "a.game[class*='game_']")
+            for elem in game_elements:
+                class_attr = elem.get_attribute("class")
+                if "game_2x" in class_attr:
+                    game_presence['2x'] = True
+                elif "game_3x" in class_attr:
+                    game_presence['3x'] = True
+                elif "game_4x" in class_attr:
+                    game_presence['4x'] = True
+
+            logging.info(f"Наличие классов 2x, 3x, 4x: {game_presence}")
+
+            # Объединяем результаты
+            spin_values.update(game_presence)
+
             return spin_values
 
         except Exception as e:
             logging.error(f"Ошибка в Selenium при попытке {attempt}: {e}")
             if "DevToolsActivePort file doesn't exist" in str(e):
-                logging.error("Критическая ошибка Chrome (DevToolsActivePort)! Падаем, чтобы перезапуститься...")
+                logging.error("Критическая ошибка Chrome (DevToolsActivePort)! Перезапускаем WebDriver...")
                 close_driver()
                 raise RuntimeError("Critical Selenium error (DevToolsActivePort)") from e
             else:
@@ -237,81 +277,23 @@ def fetchSpinValues(retries=3, delay=5):
 # -------------------------------
 async def checkConditionsAndNotify():
     global spinHistory, lastSentSpinValue, lastNotifiedSpinValue, unchangedSpinValueCount
-    global valueBlueCount, valueGreenCount, valuePurpleCount
-    global lastBlueValue, lastGreenValue, lastPurpleValue
-    global lastNotifiedBlueValue, lastNotifiedGreenValue, lastNotifiedPurpleValue
+    global missing2xCount, missing3xCount, missing4xCount
+    global lastNotified2x, lastNotified3x, lastNotified4x
 
-    # Получаем все значения спинов
+    # Получаем все значения спинов и наличие классов 2x, 3x, 4x
     spin_values = fetchSpinValues()
     if spin_values is None:
         return  # Не удалось получить значения (не критическая ошибка), выходим
 
     # Обновление истории (хранится только 100 последних значений)
-    spinValue = spin_values.get("rounds-stats__color rounds-stats__color_20x")
+    spinValue = spin_values.get("20x")  # Исправлено на '20x'
     if spinValue is not None:
         spinHistory.append(spinValue)
         if len(spinHistory) > 100:
             spinHistory.pop(0)
         logging.info(f"Обновление истории спинов: {spinHistory[-10:]}")
 
-    # Обработка для каждого из новых элементов
-    valueBlue = spin_values.get("rounds-stats__color rounds-stats__color_2x")
-    valueGreen = spin_values.get("rounds-stats__color rounds-stats__color_3x")
-    valuePurple = spin_values.get("rounds-stats__color rounds-stats__color_5x")
-    logging.info(f"Получены новые значения: Blue={valueBlue}, Green={valueGreen}, Purple={valuePurple}")
-
-    # Обновление счётчика для valueBlue
-    if valueBlue is not None:
-        if lastBlueValue is not None and valueBlue < lastBlueValue:
-            valueBlueCount += 1
-            logging.info(f"Счётчик Blue увеличен до {valueBlueCount}")
-        else:
-            valueBlueCount = 0
-            logging.info(f"Счётчик Blue сброшен")
-        lastBlueValue = valueBlue
-
-        if valueBlueCount >= 6 and valueBlue != lastNotifiedBlueValue:
-            message = f"Синяя не выпадала 12 спинов подряд!"
-            await sendNotification(message)
-            lastNotifiedBlueValue = valueBlue
-            logging.info(f"Уведомление отправлено: {message}")
-            valueBlueCount = 0  # Сброс счетчика после уведомления
-
-    # Обновление счётчика для valueGreen
-    if valueGreen is not None:
-        if lastGreenValue is not None and valueGreen < lastGreenValue:
-            valueGreenCount += 1
-            logging.info(f"Счётчик Green увеличен до {valueGreenCount}")
-        else:
-            valueGreenCount = 0
-            logging.info(f"Счётчик Green сброшен")
-        lastGreenValue = valueGreen
-
-        if valueGreenCount >= 5 and valueGreen != lastNotifiedGreenValue:
-            message = f"Зелёная не выпадала 10 спинов подряд!"
-            await sendNotification(message)
-            lastNotifiedGreenValue = valueGreen
-            logging.info(f"Уведомление отправлено: {message}")
-            valueGreenCount = 0  # Сброс счетчика после уведомления
-
-    # Обновление счётчика для valuePurple
-    if valuePurple is not None:
-        if lastPurpleValue is not None and valuePurple < lastPurpleValue:
-            valuePurpleCount += 1
-            logging.info(f"Счётчик Purple увеличен до {valuePurpleCount}")
-        else:
-            valuePurpleCount = 0
-            logging.info(f"Счётчик Purple сброшен")
-        lastPurpleValue = valuePurple
-
-        if valuePurpleCount >= 5 and valuePurple != lastNotifiedPurpleValue:
-            message = f"Фиолетовая не выпадала 10 спинов подряд!"
-            await sendNotification(message)
-            lastNotifiedPurpleValue = valuePurple
-            logging.info(f"Уведомление отправлено: {message}")
-            valuePurpleCount = 0  # Сброс счетчика после уведомления
-
-    # Обработка для основного значения (35x)
+    # Обработка для основного значения (20x)
     if spinValue is not None:
         if (
             spinValue <= (lastSentSpinValue if lastSentSpinValue is not None else float('-inf'))
@@ -327,7 +309,7 @@ async def checkConditionsAndNotify():
 
             if unchangedSpinValueCount >= unchangedSpinValueThreshold:
                 alertMessage = (
-                    f"Последняя золотая (35х) была 85 спинов назад"
+                    f"Последняя золотая (35х) была {unchangedSpinValueThreshold} спинов назад"
                 )
                 await sendNotification(alertMessage)
                 logging.info(f"Уведомление о повторении отправлено: {alertMessage}")
@@ -343,6 +325,62 @@ async def checkConditionsAndNotify():
 
         # Обновляем "последнее отправленное" значение
         lastSentSpinValue = spinValue
+
+    # Обработка для 2x, 3x, 4x
+    # Проверяем наличие классов
+    is_2x_present = spin_values.get('2x', False)
+    is_3x_present = spin_values.get('3x', False)
+    is_4x_present = spin_values.get('4x', False)
+
+    logging.info(f"Наличие 2x: {is_2x_present}, 3x: {is_3x_present}, 4x: {is_4x_present}")
+
+    # Обновление счётчика для 2x
+    if is_2x_present:
+        if missing2xCount != 0:
+            logging.info("Счётчик 2x сброшен, так как 2x присутствует")
+        missing2xCount = 0
+        lastNotified2x = None
+    else:
+        missing2xCount += 1
+        logging.info(f"Счётчик 2x увеличен до {missing2xCount}")
+        if missing2xCount >= missing2xThreshold and missing2xCount != lastNotified2x:
+            message = "2x не выпадала 12 спинов подряд!"
+            await sendNotification(message)
+            lastNotified2x = missing2xCount
+            logging.info(f"Уведомление отправлено: {message}")
+            missing2xCount = 0  # Сброс счетчика после уведомления
+
+    # Обновление счётчика для 3x
+    if is_3x_present:
+        if missing3xCount != 0:
+            logging.info("Счётчик 3x сброшен, так как 3x присутствует")
+        missing3xCount = 0
+        lastNotified3x = None
+    else:
+        missing3xCount += 1
+        logging.info(f"Счётчик 3x увеличен до {missing3xCount}")
+        if missing3xCount >= missing3xThreshold and missing3xCount != lastNotified3x:
+            message = "3x не выпадала 10 спинов подряд!"
+            await sendNotification(message)
+            lastNotified3x = missing3xCount
+            logging.info(f"Уведомление отправлено: {message}")
+            missing3xCount = 0  # Сброс счетчика после уведомления
+
+    # Обновление счётчика для 4x
+    if is_4x_present:
+        if missing4xCount != 0:
+            logging.info("Счётчик 4x сброшен, так как 4x присутствует")
+        missing4xCount = 0
+        lastNotified4x = None
+    else:
+        missing4xCount += 1
+        logging.info(f"Счётчик 4x увеличен до {missing4xCount}")
+        if missing4xCount >= missing4xThreshold and missing4xCount != lastNotified4x:
+            message = "4x не выпадала 10 спинов подряд!"
+            await sendNotification(message)
+            lastNotified4x = missing4xCount
+            logging.info(f"Уведомление отправлено: {message}")
+            missing4xCount = 0  # Сброс счетчика после уведомления
 
     # Сохраняем состояние после каждого успешного обновления
     save_state()
@@ -369,7 +407,7 @@ async def sendNotification(message):
 # --------------------
 async def checkConditionsAndNotifyLoop():
     """
-    Запускает бесконечный цикл, который раз в 60 секунд
+    Запускает бесконечный цикл, который раз в 26 секунд
     вызывает checkConditionsAndNotify().
     """
     while True:
@@ -378,7 +416,7 @@ async def checkConditionsAndNotifyLoop():
         except Exception as e:
             logging.error(f"Ошибка в цикле: {e}")
             close_driver()
-        await asyncio.sleep(60)
+        await asyncio.sleep(26)  # Изменено с 60 на 26 секунд
 
 async def handle_start(message: types.Message):
     """
