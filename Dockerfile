@@ -35,11 +35,6 @@ COPY . /app
 # Устанавливаем зависимости Python
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Определяем аргумент сборки для выбора скрипта бота
-ARG BOT_SCRIPT=bot.py
 
-# Устанавливаем переменную окружения для скрипта бота (опционально)
-ENV BOT_SCRIPT=${BOT_SCRIPT}
-
-# Команда для запуска скрипта бота (используем shell-форму для расширения переменных)
-CMD python ${BOT_SCRIPT}
+# Запускаем приложение
+CMD ["python", "service.py"]
