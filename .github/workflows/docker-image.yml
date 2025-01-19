@@ -37,21 +37,22 @@ jobs:
           push: true
           tags: "m0ln1z/selenium-bot-35x:${{ env.DOCKER_TAG_35X }}"
 
-      # 4.1. Установка sshpass
-      - name: Install sshpass
-        run: sudo apt-get update && sudo apt-get install -y sshpass
+      # 4.1. Настройка SSH-агента и добавление приватного ключа
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.5.4
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
       # 5. Деплой на сервер для 35x бота
       - name: Deploy 35x bot to server
         env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
           DOCKER_TAG_35X: ${{ env.DOCKER_TAG_35X }}
           BOT_TOKEN_35X: ${{ secrets.BOT_TOKEN }}
           CHAT_ID_35X: ${{ secrets.CHAT_ID }}
         run: |
-          sshpass -p "${SSH_PASSWORD}" ssh -o StrictHostKeyChecking=no ${SSH_USER}@${SSH_HOST} "
+          ssh -o StrictHostKeyChecking=no ${SSH_USER}@${SSH_HOST} "
+          echo 'Connected to server.'
+          
           # Проверка наличия Docker
           if ! command -v docker &> /dev/null
           then
@@ -80,6 +81,9 @@ jobs:
           # Пулл обновлённого образа для 35x бота
           docker pull m0ln1z/selenium-bot-35x:${DOCKER_TAG_35X} &&
           
+          # Проверка успешного пулла
+          docker images | grep m0ln1z/selenium-bot-35x:${DOCKER_TAG_35X} && echo 'Image pulled successfully.' || { echo 'Failed to pull image.' ; exit 1; } &&
+          
           # Остановка и удаление старого контейнера
           docker stop selenium-bot-35x || docker kill selenium-bot-35x || true &&
           docker rm -f selenium-bot-35x || true &&
@@ -95,6 +99,8 @@ jobs:
             -e BOT_TOKEN_35X='${BOT_TOKEN_35X}' \
             -e CHAT_ID_35X='${CHAT_ID_35X}' \
             m0ln1z/selenium-bot-35x:${DOCKER_TAG_35X}
+          
+          echo 'Deployment completed.'
           "
 
   deploy_234x_bot:
@@ -129,21 +135,22 @@ jobs:
           push: true
           tags: "m0ln1z/selenium-bot-234x:${{ env.DOCKER_TAG_234X }}"
 
-      # 4.1. Установка sshpass
-      - name: Install sshpass
-        run: sudo apt-get update && sudo apt-get install -y sshpass
+      # 4.1. Настройка SSH-агента и добавление приватного ключа
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.5.4
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
       # 5. Деплой на сервер для 2x,3x,4x бота
       - name: Deploy 2x,3x,4x bot to server
         env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
           DOCKER_TAG_234X: ${{ env.DOCKER_TAG_234X }}
           BOT_TOKEN_234X: ${{ secrets.BOT_TOKEN_234X }}
           CHAT_ID_234X: ${{ secrets.CHAT_ID_234X }}
         run: |
-          sshpass -p "${SSH_PASSWORD}" ssh -o StrictHostKeyChecking=no ${SSH_USER}@${SSH_HOST} "
+          ssh -o StrictHostKeyChecking=no ${SSH_USER}@${SSH_HOST} "
+          echo 'Connected to server.'
+          
           # Проверка наличия Docker
           if ! command -v docker &> /dev/null
           then
@@ -172,6 +179,9 @@ jobs:
           # Пулл обновлённого образа для 2x,3x,4x бота
           docker pull m0ln1z/selenium-bot-234x:${DOCKER_TAG_234X} &&
           
+          # Проверка успешного пулла
+          docker images | grep m0ln1z/selenium-bot-234x:${DOCKER_TAG_234X} && echo 'Image pulled successfully.' || { echo 'Failed to pull image.' ; exit 1; } &&
+          
           # Остановка и удаление старого контейнера
           docker stop selenium-bot-234x || docker kill selenium-bot-234x || true &&
           docker rm -f selenium-bot-234x || true &&
@@ -187,4 +197,6 @@ jobs:
             -e BOT_TOKEN_234X='${BOT_TOKEN_234X}' \
             -e CHAT_ID_234X='${CHAT_ID_234X}' \
             m0ln1z/selenium-bot-234x:${DOCKER_TAG_234X}
+          
+          echo 'Deployment completed.'
           "
