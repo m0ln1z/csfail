@@ -29,8 +29,8 @@ logging.basicConfig(
     ]
 )
 
-botToken = os.getenv("7381459756:AAFcqXCJtFjx-PJpDSVL4Wcs3543nltkzG8")
-chatId = os.getenv("-4751196447")
+botToken = os.getenv("BOT_TOKEN")
+chatId = os.getenv("CHAT_ID")
 
 bot = Bot(token=botToken, session=AiohttpSession(timeout=60))
 storage = MemoryStorage()
