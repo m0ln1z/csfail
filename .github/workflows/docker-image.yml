@@ -47,19 +47,13 @@ jobs:
           docker build --build-arg BOT_SCRIPT=${{ matrix.bot.bot_script }} -t "m0ln1z/${{ matrix.bot.image }}:${{ env.DOCKER_TAG }}" .
           docker push "m0ln1z/${{ matrix.bot.image }}:${{ env.DOCKER_TAG }}"
 
-      # 5. Настройка SSH-агента для использования SSH-ключей
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.5.4
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-
-      # 6. Деплой на сервер
+      # 5. Деплой на сервер с использованием SSH-пароля
       - name: Deploy to server
         uses: appleboy/ssh-action@v0.1.5
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
           script: |
             echo "Connected to server."
 
