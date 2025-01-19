@@ -37,6 +37,9 @@ jobs:
           echo "Docker tag set to ${TAG}"
 
       # 3. Аутентификация в Docker Hub и получение JWT-токена
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
       - name: Authenticate with Docker Hub
         id: docker_auth
         run: |
@@ -52,7 +55,7 @@ jobs:
       # 4. Создание Docker Hub репозитория, если он не существует
       - name: Create Docker Hub Repository if not exists
         run: |
-          REPO_NAME=${{ matrix.bot.image##*/ }}
+          REPO_NAME=${{ split(matrix.bot.image, '/')[1] }}
           RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: JWT $DOCKER_JWT_TOKEN" https://hub.docker.com/v2/repositories/m0ln1z/${REPO_NAME}/)
           if [ "$RESPONSE" -ne 200 ]; then
             echo "Repository $REPO_NAME does not exist. Creating it..."
@@ -130,3 +133,5 @@ jobs:
               -e BOT_TOKEN='${{ secrets[matrix.bot.bot_token_secret] }}' \
               -e CHAT_ID='${{ secrets[matrix.bot.chat_id_secret] }}' \
               ${{ matrix.bot.image }}:${{ env.DOCKER_TAG }}
+
+            echo "Deployment completed successfully."
