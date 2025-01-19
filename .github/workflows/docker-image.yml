@@ -36,65 +36,24 @@ jobs:
           echo "DOCKER_TAG=${TAG}" >> $GITHUB_ENV
           echo "Docker tag set to ${TAG}"
 
-      # 3. Установка jq для парсинга JSON
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
-
-      # 4. Аутентификация в Docker Hub и получение JWT-токена
-      - name: Authenticate with Docker Hub
-        id: docker_auth
+      # 3. Аутентификация в Docker Hub
+      - name: Login to Docker Hub
         run: |
-          RESPONSE=$(curl -s -H "Content-Type: application/json" -X POST -d "{\"username\": \"${{ secrets.DOCKER_USERNAME }}\", \"password\": \"${{ secrets.DOCKER_ACCESS_TOKEN }}\"}" https://hub.docker.com/v2/users/login/)
-          echo "Response: $RESPONSE" # Временный шаг для отладки
-          TOKEN=$(echo $RESPONSE | jq -r .token)
-          if [ "$TOKEN" == "null" ] || [ -z "$TOKEN" ]; then
-            echo "Failed to obtain Docker Hub token."
-            exit 1
-          fi
-          echo "DOCKER_JWT_TOKEN=${TOKEN}" >> $GITHUB_ENV
-          echo "Docker Hub authentication successful."
+          echo "${{ secrets.DOCKER_ACCESS_TOKEN }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
-      # 5. Создание Docker Hub репозитория, если он не существует
-      - name: Create Docker Hub Repository if not exists
-        run: |
-          # Извлечение имени репозитория из полного имени образа
-          REPO_NAME=$(echo "${{ matrix.bot.image }}" | cut -d'/' -f2)
-          echo "Repository Name: $REPO_NAME"
-          
-          # Проверка существования репозитория
-          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: JWT $DOCKER_JWT_TOKEN" https://hub.docker.com/v2/repositories/m0ln1z/${REPO_NAME}/)
-          
-          if [ "$RESPONSE" -ne 200 ]; then
-            echo "Repository $REPO_NAME does not exist. Creating it..."
-            CREATE_RESPONSE=$(curl -s -X POST -H "Content-Type: application/json" -H "Authorization: JWT $DOCKER_JWT_TOKEN" -d "{\"namespace\": \"m0ln1z\", \"name\": \"${REPO_NAME}\", \"description\": \"Docker image for ${REPO_NAME}\", \"is_private\": false}" https://hub.docker.com/v2/repositories/)
-            if echo "$CREATE_RESPONSE" | grep -q "\"name\": \"${REPO_NAME}\""; then
-              echo "Repository $REPO_NAME created successfully."
-            else
-              echo "Failed to create repository $REPO_NAME. Response: $CREATE_RESPONSE"
-              exit 1
-            fi
-          else
-            echo "Repository $REPO_NAME already exists."
-          fi
-
-      # 6. Логин в Docker Hub через CLI (для совместимости с Docker CLI)
-      - name: Login to Docker Hub via CLI
-        run: |
-          echo "${{ env.DOCKER_JWT_TOKEN }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-
-      # 7. Сборка и пуш Docker-образа с указанным скриптом бота
+      # 4. Сборка и пуш Docker-образа с указанным скриптом бота
       - name: Build and push Docker image
         run: |
           docker build --build-arg BOT_SCRIPT=${{ matrix.bot.bot_script }} -t "${{ matrix.bot.image }}:${{ env.DOCKER_TAG }}" .
           docker push "${{ matrix.bot.image }}:${{ env.DOCKER_TAG }}"
 
-      # 8. Настройка SSH-агента для использования SSH-ключей
+      # 5. Настройка SSH-агента для использования SSH-ключей
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.5.4
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      # 9. Деплой на сервер
+      # 6. Деплой на сервер
       - name: Deploy to server
         uses: appleboy/ssh-action@v0.1.5
         with:
