@@ -164,7 +164,7 @@ def create_driver():
         service = Service(ChromeDriverManager().install())
         driver_instance = webdriver.Chrome(service=service, options=chromeOptions)
         logging.info("ChromeDriver успешно запущен")
-        driver_instance.set_page_load_timeout(30)
+        driver_instance.set_page_load_timeout(25)
         return driver_instance
     except Exception as e:
         logging.error(f"Не удалось запустить ChromeDriver: {e}")
