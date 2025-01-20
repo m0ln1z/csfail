@@ -20,24 +20,30 @@ jobs:
           echo "Docker tag set to ${TAG}"
 
       - name: Login to Docker Hub
-        env:
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-        run: |
-          echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Clear Docker cache
-        run: |
-          docker system prune -a -f
+      # Optionally remove the Clear Docker cache step
+      # - name: Clear Docker cache
+      #   run: |
+      #     docker system prune -a -f
 
       - name: Build and push Docker image
         run: |
-          echo "Проверяем содержимое директории:"
+          echo "Listing directory contents:"
           ls -la
-          echo "Содержимое Dockerfile:"
+          echo "Displaying Dockerfile contents:"
           cat Dockerfile
           docker build -t "m0ln1z/selenium-bot:${{ env.DOCKER_TAG }}" .
-          docker push "m0ln1z/selenium-bot:${{ env.DOCKER_TAG }}"
+          
+          # Retry logic for docker push
+          for i in {1..3}; do
+            docker push "m0ln1z/selenium-bot:${{ env.DOCKER_TAG }}" && break
+            echo "Push failed, retrying in 10 seconds..."
+            sleep 10
+          done
 
       - name: Deploy to server
         env:
