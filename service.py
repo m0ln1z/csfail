@@ -425,13 +425,21 @@ async def checkConditionsAndNotifyLoop():
     Запускает бесконечный цикл, который раз в 26 секунд
     вызывает checkConditionsAndNotify().
     """
+    interval = 26  # Интервал в секундах
     while True:
+        loop_start_time = time.time()
+        logging.info("Начало итерации цикла проверки условий.")
         try:
             await checkConditionsAndNotify()
         except Exception as e:
             logging.error(f"Ошибка в цикле: {e}")
             close_driver()
-        await asyncio.sleep(26)  # Изменено с 60 на 26 секунд
+        loop_end_time = time.time()
+        elapsed_time = loop_end_time - loop_start_time
+        logging.info(f"Итерация цикла завершена. Время выполнения: {elapsed_time:.2f} секунд.")
+        sleep_duration = max(0, interval - elapsed_time)
+        logging.info(f"Ожидание перед следующей итерацией: {sleep_duration:.2f} секунд.")
+        await asyncio.sleep(sleep_duration)
 
 async def handle_start(message: types.Message):
     """
