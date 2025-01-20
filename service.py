@@ -61,7 +61,7 @@ missing4xCount = 0
 # Пороги для уведомлений
 missing2xThreshold = 11
 missing3xThreshold = 9
-missing4xThreshold = 9
+missing4xThreshold = 13
 
 # Последние уведомленные значения
 lastNotified2x = None
@@ -381,7 +381,7 @@ async def checkConditionsAndNotify():
         missing4xCount += 1
         logging.info(f"Счётчик 4x увеличен до {missing4xCount}")
         if missing4xCount >= missing4xThreshold and missing4xCount != lastNotified4x:
-            message = "4x не выпадала 10 спинов подряд!"
+            message = "4x не выпадала 14 спинов подряд!"
             await sendNotification(message, notification_type="other")
             lastNotified4x = missing4xCount
             logging.info(f"Уведомление отправлено: {message}")
