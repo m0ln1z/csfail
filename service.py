@@ -4,6 +4,7 @@ import logging
 import asyncio
 import time
 import gc
+import sys  # <-- добавили sys
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
@@ -233,13 +234,12 @@ def fetchSpinValues():
 
     except Exception as e:
         logging.error(f"Ошибка при чтении данных со страницы: {e}")
-        # Если произошла критическая ошибка, закрываем браузер, 
-        # чтобы в следующем цикле он пересоздался и перезагрузил страницу.
+        # Закрываем браузер, чтобы при следующем цикле пересоздать
         close_driver()
         return None
 
 # -------------------------------------
-# Дальше вся логика checkConditionsAndNotify
+# Функции checkConditionsAndNotify
 # -------------------------------------
 async def checkConditionsAndNotify():
     global spinHistory, lastSentSpinValue, lastNotifiedSpinValue, unchangedSpinValueCount
@@ -259,9 +259,11 @@ async def checkConditionsAndNotify():
         if len(spinHistory) > 100:
             spinHistory.pop(0)
 
-    # (Далее логика из вашего кода: проверки, уведомления и т.п.)
+    # ------------------------------
+    # Проверки и уведомления
     # ------------------------------
     if spinValue is not None:
+        # Проверка отсутствия роста 20x
         if (
             spinValue <= (lastSentSpinValue if lastSentSpinValue is not None else float('-inf'))
             or (lastSentSpinValue is not None
@@ -280,6 +282,7 @@ async def checkConditionsAndNotify():
         else:
             unchangedSpinValueCount = 0
 
+        # Пример проверки на минимум 20x за последние 100 спинов
         if spinValue <= 2 and spinValue != lastNotifiedSpinValue:
             message = f"{spinValue} золотых за последние 100 спинов"
             await sendNotification(message, notification_type="35x")
@@ -328,7 +331,6 @@ async def checkConditionsAndNotify():
     save_state()
 
 async def sendNotification(message, notification_type="other"):
-    # Без изменений
     retries = 3
     for attempt in range(1, retries + 1):
         try:
@@ -362,6 +364,10 @@ async def checkConditionsAndNotifyLoop():
         except Exception as e:
             logging.error(f"Ошибка в цикле: {e}")
             close_driver()
+            # Если хотите принудительно убить скрипт сразу при любой ошибке в цикле,
+            # можно раскомментировать строку ниже (но тогда не будет пытаться продолжить работу):
+            # sys.exit(1)
+
         loop_end_time = time.time()
         elapsed_time = loop_end_time - loop_start_time
         logging.info(f"Итерация цикла завершена. Время выполнения: {elapsed_time:.2f} секунд.")
@@ -389,10 +395,10 @@ async def main():
 
         await dp.start_polling(bot_35x)
     except Exception as e:
-        logging.error(f"Скрипт упал с ошибкой: {e}. Перезапуск через 10 сек.")
+        logging.error(f"Скрипт упал с ошибкой: {e}. Отключаемся, чтобы Docker перезапустил контейнер.")
         close_driver()
-        await asyncio.sleep(10)
-        await main()
+        # Вместо цикла с повторным вызовом main() — просто завершаем работу:
+        sys.exit(1)
 
 if __name__ == "__main__":
     try:
@@ -401,3 +407,6 @@ if __name__ == "__main__":
         logging.info("Скрипт остановлен вручную.")
     except Exception as e:
         logging.error(f"Непредвиденная ошибка: {e}")
+        # Прямо перед выходом тоже закроем драйвер
+        close_driver()
+        sys.exit(1)
