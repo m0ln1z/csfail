@@ -10,23 +10,20 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager  # Добавлено
+from webdriver_manager.chrome import ChromeDriverManager
 
 from aiogram import Bot, Dispatcher, types, Router
 from aiogram.filters import Command
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.fsm.storage.memory import MemoryStorage
 
-# ---------------------
-# Глобальные переменные
-# ---------------------
+# --------------------
+# Глобальные настройки
+# --------------------
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("app.log"),
-        logging.StreamHandler()
-    ]
+    handlers=[logging.FileHandler("app.log"), logging.StreamHandler()]
 )
 
 botToken_35x = os.getenv("BOT_TOKEN")
@@ -38,14 +35,12 @@ chatId_other = os.getenv("CHAT_ID_234X")
 bot_35x = Bot(token=botToken_35x, session=AiohttpSession(timeout=60))
 bot_other = Bot(token=botToken_other, session=AiohttpSession(timeout=60))
 
-# Удаляем создание основного бота и используем bot_35x для диспетчера
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 router = Router()
 dp.include_router(router)
 
 url = "https://5cs.fail/en/wheel"
-className = "rounds-stats__color rounds-stats__color_20x"
 
 unchangedSpinValueCount = 0
 unchangedSpinValueThreshold = 85
@@ -61,7 +56,7 @@ missing4xCount = 0
 # Пороги для уведомлений
 missing2xThreshold = 11
 missing3xThreshold = 9
-missing4xThreshold = 13
+missing4xThreshold = 9
 
 # Последние уведомленные значения
 lastNotified2x = None
@@ -79,9 +74,6 @@ driver = None  # Храним экземпляр Selenium (Chrome) здесь
 # Функции сохранения/загрузки
 # ----------------------------
 def load_state():
-    """
-    Читаем состояние из state.json, если он существует.
-    """
     global unchangedSpinValueCount, lastSentSpinValue, lastNotifiedSpinValue, spinHistory
     global missing2xCount, missing3xCount, missing4xCount
     global lastNotified2x, lastNotified3x, lastNotified4x
@@ -95,7 +87,6 @@ def load_state():
             lastNotifiedSpinValue = data.get("lastNotifiedSpinValue", None)
             spinHistory = data.get("spinHistory", [])
 
-            # Загрузка новых счетчиков
             missing2xCount = data.get("missing2xCount", 0)
             missing3xCount = data.get("missing3xCount", 0)
             missing4xCount = data.get("missing4xCount", 0)
@@ -111,9 +102,6 @@ def load_state():
         logging.info("Файл state.json не найден. Используем значения по умолчанию.")
 
 def save_state():
-    """
-    Сохраняем текущее состояние в state.json.
-    """
     data = {
         "unchangedSpinValueCount": unchangedSpinValueCount,
         "lastSentSpinValue": lastSentSpinValue,
@@ -137,9 +125,6 @@ def save_state():
 # Функции управления WebDriver
 # --------------------------------
 def create_driver():
-    """
-    Создаёт новый экземпляр ChromeDriver с нужными опциями и возвращает его.
-    """
     chromeOptions = Options()
     chromeOptions.add_argument("--headless")
     chromeOptions.add_argument("--disable-gpu")
@@ -149,7 +134,6 @@ def create_driver():
     chromeOptions.add_experimental_option("excludeSwitches", ["enable-automation"])
     chromeOptions.add_experimental_option("useAutomationExtension", False)
 
-    # Отключаем картинки (для экономии ресурсов)
     prefs = {"profile.managed_default_content_settings.images": 2}
     chromeOptions.add_experimental_option("prefs", prefs)
 
@@ -160,7 +144,6 @@ def create_driver():
     )
 
     try:
-        # Используем webdriver-manager для автоматической установки ChromeDriver
         service = Service(ChromeDriverManager().install())
         driver_instance = webdriver.Chrome(service=service, options=chromeOptions)
         logging.info("ChromeDriver успешно запущен")
@@ -171,10 +154,6 @@ def create_driver():
         raise
 
 def get_driver():
-    """
-    Возвращает актуальный WebDriver. Если он ещё не создан
-    или упал в предыдущем цикле — пересоздаём.
-    """
     global driver
     if driver is None:
         logging.info("Создаём новый экземпляр ChromeDriver...")
@@ -182,9 +161,6 @@ def get_driver():
     return driver
 
 def close_driver():
-    """
-    Закрывает WebDriver и освобождает память.
-    """
     global driver
     if driver:
         logging.info("Закрываем WebDriver...")
@@ -196,90 +172,75 @@ def close_driver():
         driver = None
         gc.collect()
 
+# -------------------------
+# Единоразовая загрузка URL
+# -------------------------
+def load_page_once():
+    d = get_driver()
+    try:
+        d.get(url)
+        logging.info("Страница загружена один раз. Дальше не перезагружаем.")
+        # Небольшая пауза, чтобы страница успела дорендерить динамические элементы
+        time.sleep(3)
+    except Exception as e:
+        logging.error(f"Ошибка при загрузке страницы {url}: {e}")
+        close_driver()
+        raise
+
 # ------------------------
-# Сама логика с Selenium
+# Чтение обновлённых данных
 # ------------------------
-def fetchSpinValues(retries=3, delay=5):
+def fetchSpinValues():
     """
-    Использует глобальный driver, чтобы открыть страницу
-    и получить значения spinValue для основного класса и классов 2x, 3x, 4x внутри <div data-swiper-slide-index="0">.
-    Возвращает словарь с результатами. Если не удаётся — None.
-    В случае получения нулевых значений, пытается перезапросить страницу.
+    Читаем необходимые значения напрямую из уже загруженной страницы,
+    не делаем повторных get/refresh. Предполагается, что страница
+    динамически обновляет DOM.
     """
-    d = get_driver()  # Получаем (или создаём) driver
+    d = get_driver()
 
-    for attempt in range(1, retries + 1):
-        try:
-            # Загружаем страницу
-            d.get(url)
-            logging.info(f"Страница загружена, ищем элементы... (Попытка {attempt})")
+    try:
+        # При каждом вызове просто пытаемся прочитать текущие данные
+        wait = WebDriverWait(d, 15)
 
-            # Ждём основной элемент для 20x
-            wait = WebDriverWait(d, 30)
-            main_element = wait.until(EC.presence_of_element_located(
-                (By.CSS_SELECTOR, '.rounds-stats__color.rounds-stats__color_20x')
-            ))
-            main_value_text = main_element.text.strip()
-            spin_values = {}
-            spin_values['20x'] = int(main_value_text) if main_value_text.isdigit() else None
-            logging.info(f"Основное значение 20x найдено: {spin_values['20x']}")
+        # Основное значение 20x
+        main_element = wait.until(EC.presence_of_element_located(
+            (By.CSS_SELECTOR, ".rounds-stats__color.rounds-stats__color_20x")
+        ))
+        main_value_text = main_element.text.strip()
+        spin_values = {}
+        spin_values['20x'] = int(main_value_text) if main_value_text.isdigit() else None
 
-            # Проверяем, является ли значение 20x нулевым или отсутствующим
-            if spin_values['20x'] is None:
-                logging.warning("Основное значение 20x отсутствует. Пытаемся перезапросить страницу.")
-                raise ValueError("Получено некорректное значение 20x.")
+        if spin_values['20x'] is None:
+            logging.warning("Некорректное значение 20x (None).")
 
-            # Теперь ищем родительский div с data-swiper-slide-index="0"
-            parent_div = wait.until(EC.presence_of_element_located(
-                (By.CSS_SELECTOR, 'div[data-swiper-slide-index="0"]')
-            ))
-            logging.info("Родительский div с data-swiper-slide-index='0' найден.")
+        # Ищем общий родитель с data-swiper-slide-index="0"
+        parent_div = d.find_element(By.CSS_SELECTOR, 'div[data-swiper-slide-index="0"]')
 
-            # Ищем элементы для 2x, 3x, 4x внутри parent_div
-            # Предполагается, что элементы имеют классы 'game_2x', 'game_3x', 'game_4x'
-            # Замените селекторы ниже на реальные классы, если они отличаются
+        # Ищем элементы <a> с классом, содержащим 'game_2x', 'game_3x', 'game_4x'
+        game_presence = {'2x': False, '3x': False, '4x': False}
+        game_elements = parent_div.find_elements(By.CSS_SELECTOR, "a.game[class*='game_']")
+        for elem in game_elements:
+            class_attr = elem.get_attribute("class")
+            if "game_2x" in class_attr:
+                game_presence['2x'] = True
+            elif "game_3x" in class_attr:
+                game_presence['3x'] = True
+            elif "game_4x" in class_attr:
+                game_presence['4x'] = True
 
-            game_presence = {
-                '2x': False,
-                '3x': False,
-                '4x': False,
-            }
+        spin_values.update(game_presence)
+        return spin_values
 
-            # Ищем все элементы <a> с классом, содержащим 'game_'
-            game_elements = parent_div.find_elements(By.CSS_SELECTOR, "a.game[class*='game_']")
-            for elem in game_elements:
-                class_attr = elem.get_attribute("class")
-                if "game_2x" in class_attr:
-                    game_presence['2x'] = True
-                elif "game_3x" in class_attr:
-                    game_presence['3x'] = True
-                elif "game_4x" in class_attr:
-                    game_presence['4x'] = True
+    except Exception as e:
+        logging.error(f"Ошибка при чтении данных со страницы: {e}")
+        # Если произошла критическая ошибка, закрываем браузер, 
+        # чтобы в следующем цикле он пересоздался и перезагрузил страницу.
+        close_driver()
+        return None
 
-            logging.info(f"Наличие классов 2x, 3x, 4x: {game_presence}")
-
-            # Объединяем результаты
-            spin_values.update(game_presence)
-
-            return spin_values
-
-        except Exception as e:
-            logging.error(f"Ошибка в Selenium при попытке {attempt}: {e}")
-            if "DevToolsActivePort file doesn't exist" in str(e):
-                logging.error("Критическая ошибка Chrome (DevToolsActivePort)! Перезапускаем WebDriver...")
-                close_driver()
-                raise RuntimeError("Critical Selenium error (DevToolsActivePort)") from e
-            else:
-                logging.info(f"Попытка {attempt} не удалась. Ждём {delay} секунд перед следующей попыткой...")
-                close_driver()
-                time.sleep(delay)
-
-    logging.error("Не удалось получить корректные значения spinValue после всех попыток.")
-    return None
-
-# -------------------------------
-# Проверка условий + Уведомления
-# -------------------------------
+# -------------------------------------
+# Дальше вся логика checkConditionsAndNotify
+# -------------------------------------
 async def checkConditionsAndNotify():
     global spinHistory, lastSentSpinValue, lastNotifiedSpinValue, unchangedSpinValueCount
     global missing2xCount, missing3xCount, missing4xCount
@@ -288,17 +249,18 @@ async def checkConditionsAndNotify():
     loop = asyncio.get_running_loop()
     spin_values = await loop.run_in_executor(None, fetchSpinValues)
     if spin_values is None:
-        return  # Не удалось получить значения (не критическая ошибка), выходим
+        return  # Не удалось получить значения, выходим
 
-    # Обновление истории (хранится только 100 последних значений)
-    spinValue = spin_values.get("20x")  # Исправлено на '20x'
+    spinValue = spin_values.get("20x")
+
+    # Обновление истории
     if spinValue is not None:
         spinHistory.append(spinValue)
         if len(spinHistory) > 100:
             spinHistory.pop(0)
-        logging.info(f"Обновление истории спинов: {spinHistory[-10:]}")
 
-    # Обработка для основного значения (20x)
+    # (Далее логика из вашего кода: проверки, уведомления и т.п.)
+    # ------------------------------
     if spinValue is not None:
         if (
             spinValue <= (lastSentSpinValue if lastSentSpinValue is not None else float('-inf'))
@@ -311,13 +273,9 @@ async def checkConditionsAndNotify():
                 f"Значение {spinValue} <= предыдущего ({lastSentSpinValue}); "
                 f"Счётчик: {unchangedSpinValueCount}/{unchangedSpinValueThreshold}"
             )
-
             if unchangedSpinValueCount >= unchangedSpinValueThreshold:
-                alertMessage = (
-                    f"Последняя золотая (35х) была {unchangedSpinValueThreshold} спинов назад"
-                )
+                alertMessage = f"Последняя золотая (35х) была {unchangedSpinValueThreshold} спинов назад"
                 await sendNotification(alertMessage, notification_type="35x")
-                logging.info(f"Уведомление о повторении отправлено: {alertMessage}")
                 unchangedSpinValueCount = 0
         else:
             unchangedSpinValueCount = 0
@@ -326,75 +284,51 @@ async def checkConditionsAndNotify():
             message = f"{spinValue} золотых за последние 100 спинов"
             await sendNotification(message, notification_type="35x")
             lastNotifiedSpinValue = spinValue
-            logging.info(f"Уведомление отправлено: {message}")
 
-        # Обновляем "последнее отправленное" значение
         lastSentSpinValue = spinValue
 
-    # Обработка для 2x, 3x, 4x
-    # Проверяем наличие классов
+    # Проверка для 2x, 3x, 4x
     is_2x_present = spin_values.get('2x', False)
     is_3x_present = spin_values.get('3x', False)
     is_4x_present = spin_values.get('4x', False)
 
-    logging.info(f"Наличие 2x: {is_2x_present}, 3x: {is_3x_present}, 4x: {is_4x_present}")
-
-    # Обновление счётчика для 2x
     if is_2x_present:
-        if missing2xCount != 0:
-            logging.info("Счётчик 2x сброшен, так как 2x присутствует")
         missing2xCount = 0
         lastNotified2x = None
     else:
         missing2xCount += 1
-        logging.info(f"Счётчик 2x увеличен до {missing2xCount}")
         if missing2xCount >= missing2xThreshold and missing2xCount != lastNotified2x:
             message = "2x не выпадала 12 спинов подряд!"
             await sendNotification(message, notification_type="other")
             lastNotified2x = missing2xCount
-            logging.info(f"Уведомление отправлено: {message}")
-            missing2xCount = 0  # Сброс счетчика после уведомления
+            missing2xCount = 0
 
-    # Обновление счётчика для 3x
     if is_3x_present:
-        if missing3xCount != 0:
-            logging.info("Счётчик 3x сброшен, так как 3x присутствует")
         missing3xCount = 0
         lastNotified3x = None
     else:
         missing3xCount += 1
-        logging.info(f"Счётчик 3x увеличен до {missing3xCount}")
         if missing3xCount >= missing3xThreshold and missing3xCount != lastNotified3x:
             message = "3x не выпадала 10 спинов подряд!"
             await sendNotification(message, notification_type="other")
             lastNotified3x = missing3xCount
-            logging.info(f"Уведомление отправлено: {message}")
-            missing3xCount = 0  # Сброс счетчика после уведомления
+            missing3xCount = 0
 
-    # Обновление счётчика для 4x
     if is_4x_present:
-        if missing4xCount != 0:
-            logging.info("Счётчик 4x сброшен, так как 4x присутствует")
         missing4xCount = 0
         lastNotified4x = None
     else:
         missing4xCount += 1
-        logging.info(f"Счётчик 4x увеличен до {missing4xCount}")
         if missing4xCount >= missing4xThreshold and missing4xCount != lastNotified4x:
-            message = "4x не выпадала 14 спинов подряд!"
+            message = "4x не выпадала 10 спинов подряд!"
             await sendNotification(message, notification_type="other")
             lastNotified4x = missing4xCount
-            logging.info(f"Уведомление отправлено: {message}")
-            missing4xCount = 0  # Сброс счетчика после уведомления
+            missing4xCount = 0
 
-    # Сохраняем состояние после каждого успешного обновления
     save_state()
 
 async def sendNotification(message, notification_type="other"):
-    """
-    Отправляет уведомление в Telegram через разные боты.
-    notification_type: '35x' или 'other'
-    """
+    # Без изменений
     retries = 3
     for attempt in range(1, retries + 1):
         try:
@@ -413,19 +347,13 @@ async def sendNotification(message, notification_type="other"):
             if attempt < retries:
                 await asyncio.sleep(5)
             else:
-                logging.error(
-                    f"Не удалось отправить сообщение через {notification_type} бот после всех попыток."
-                )
+                logging.error(f"Не удалось отправить сообщение после всех попыток.")
 
 # --------------------
 # Основной цикл
 # --------------------
 async def checkConditionsAndNotifyLoop():
-    """
-    Запускает бесконечный цикл, который раз в 26 секунд
-    вызывает checkConditionsAndNotify().
-    """
-    interval = 26  # Интервал в секундах
+    interval = 26  
     while True:
         loop_start_time = time.time()
         logging.info("Начало итерации цикла проверки условий.")
@@ -442,45 +370,31 @@ async def checkConditionsAndNotifyLoop():
         await asyncio.sleep(sleep_duration)
 
 async def handle_start(message: types.Message):
-    """
-    Обработчик команды /start для бота.
-    """
     await message.answer("Бот запущен и работает.")
 
 def setup_handlers():
-    """
-    Настраивает обработчики для aiogram.
-    """
     @router.message(Command("start"))
     async def start_handler(message: types.Message):
         await handle_start(message)
 
 async def main():
-    """
-    Стартует бота (aiogram) и фоновую задачу checkConditionsAndNotifyLoop().
-    """
     try:
-        # При каждом запуске скрипта (после краша) - загружаем состояние:
         load_state()
-
-        # Настраиваем обработчики
         setup_handlers()
 
-        # Стартуем фоновую задачу проверки
+        get_driver()
+        load_page_once()
+
         asyncio.create_task(checkConditionsAndNotifyLoop())
 
-        # Запускаем aiogram-поллинг с bot_35x вместо bot
         await dp.start_polling(bot_35x)
     except Exception as e:
-        logging.error(f"Скрипт упал с ошибкой: {e}. Перезапускаем через 10 секунд.")
+        logging.error(f"Скрипт упал с ошибкой: {e}. Перезапуск через 10 сек.")
         close_driver()
         await asyncio.sleep(10)
         await main()
 
 if __name__ == "__main__":
-    import sys
-
-    # Запуск основного асинхронного цикла
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
