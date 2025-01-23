@@ -364,9 +364,8 @@ async def checkConditionsAndNotifyLoop():
         except Exception as e:
             logging.error(f"Ошибка в цикле: {e}")
             close_driver()
-            # Если хотите принудительно убить скрипт сразу при любой ошибке в цикле,
-            # можно раскомментировать строку ниже (но тогда не будет пытаться продолжить работу):
-            # sys.exit(1)
+            # Критическая ошибка — завершаем скрипт, чтобы Docker перезапустил
+            sys.exit(1)
 
         loop_end_time = time.time()
         elapsed_time = loop_end_time - loop_start_time
@@ -397,7 +396,6 @@ async def main():
     except Exception as e:
         logging.error(f"Скрипт упал с ошибкой: {e}. Отключаемся, чтобы Docker перезапустил контейнер.")
         close_driver()
-        # Вместо цикла с повторным вызовом main() — просто завершаем работу:
         sys.exit(1)
 
 if __name__ == "__main__":
@@ -407,6 +405,5 @@ if __name__ == "__main__":
         logging.info("Скрипт остановлен вручную.")
     except Exception as e:
         logging.error(f"Непредвиденная ошибка: {e}")
-        # Прямо перед выходом тоже закроем драйвер
         close_driver()
         sys.exit(1)
