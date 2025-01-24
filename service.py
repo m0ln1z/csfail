@@ -4,7 +4,7 @@ import logging
 import asyncio
 import time
 import gc
-import sys  # <-- добавили sys
+import sys  # <-- импорт sys для sys.exit(1)
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
@@ -233,10 +233,12 @@ def fetchSpinValues():
         return spin_values
 
     except Exception as e:
-        logging.error(f"Ошибка при чтении данных со страницы: {e}")
+        # Логируем полную информацию об исключении (stacktrace)
+        logging.exception("Ошибка при чтении данных со страницы")
         # Закрываем браузер, чтобы при следующем цикле пересоздать
         close_driver()
-        return None
+        # Повторно выбрасываем исключение для того, чтобы основной цикл мог завершить скрипт
+        raise
 
 # -------------------------------------
 # Функции checkConditionsAndNotify
@@ -249,7 +251,9 @@ async def checkConditionsAndNotify():
     loop = asyncio.get_running_loop()
     spin_values = await loop.run_in_executor(None, fetchSpinValues)
     if spin_values is None:
-        return  # Не удалось получить значения, выходим
+        # Если None вернулось (в теории при возврате без raise),
+        # просто выходим. Но сейчас у нас raise, так что сюда мы почти не попадём.
+        return
 
     spinValue = spin_values.get("20x")
 
@@ -355,7 +359,7 @@ async def sendNotification(message, notification_type="other"):
 # Основной цикл
 # --------------------
 async def checkConditionsAndNotifyLoop():
-    interval = 26  
+    interval = 26
     while True:
         loop_start_time = time.time()
         logging.info("Начало итерации цикла проверки условий.")
@@ -364,7 +368,7 @@ async def checkConditionsAndNotifyLoop():
         except Exception as e:
             logging.error(f"Ошибка в цикле: {e}")
             close_driver()
-            # Критическая ошибка — завершаем скрипт, чтобы Docker перезапустил
+            # Критическая ошибка — завершаем скрипт, чтобы Docker (или система) перезапустил
             sys.exit(1)
 
         loop_end_time = time.time()
