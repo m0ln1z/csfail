@@ -41,7 +41,7 @@ dp = Dispatcher(storage=storage)
 router = Router()
 dp.include_router(router)
 
-url = "https://5cs.fail/en/wheel"
+url = "https://6cs.fail/en/wheel"
 
 unchangedSpinValueCount = 0
 unchangedSpinValueThreshold = 85
