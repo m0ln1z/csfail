@@ -397,17 +397,18 @@ async def watchForNewSpinLoop():
     while True:
         try:
             def data_changed(driver):
+                nonlocal last_spin_data
                 current = fetchSpinValues()
-                return current != last_spin_data
+                if current != last_spin_data:
+                    last_spin_data = current
+                    return True
+                return False
 
-    
             wait = WebDriverWait(d, 60)
             wait.until(data_changed)
 
-            new_data = fetchSpinValues()
-            await checkConditionsAndNotify(new_data)
-
-            last_spin_data = new_data
+            # Обработка новых данных
+            await checkConditionsAndNotify(last_spin_data)
 
         except Exception as e:
             logging.error(f"Ошибка в watchForNewSpinLoop: {e}")
