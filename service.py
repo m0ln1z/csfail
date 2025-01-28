@@ -388,32 +388,41 @@ async def watchForNewSpinLoop():
     """
     d = get_driver()
 
-    last_spin_data = fetchSpinValues()
-    if not last_spin_data:
-        logging.error("Не удалось считать начальные данные со страницы.")
+    try:
+        last_spin_data = fetchSpinValues()
+        if not last_spin_data:
+            logging.error("Не удалось считать начальные данные со страницы.")
+            raise SystemExit(1)
+
+        while True:
+            try:
+                def data_changed(driver):
+                    nonlocal last_spin_data
+                    current = fetchSpinValues()
+                    if current != last_spin_data:
+                        last_spin_data = current
+                        return True
+                    return False
+
+                # Ожидание изменения данных
+                wait = WebDriverWait(d, 60)
+                wait.until(data_changed)
+
+                # Обработка новых данных
+                await checkConditionsAndNotify(last_spin_data)
+
+            except TimeoutException:
+                logging.warning("Timeout: данные не изменились за время ожидания. Продолжаем ожидание...")
+            except Exception as e:
+                logging.error(f"Ошибка в watchForNewSpinLoop: {e}")
+                break
+
+    except Exception as e:
+        logging.error(f"Критическая ошибка в watchForNewSpinLoop: {e}")
+        raise SystemExit(1)
+    finally:
         close_driver()
-        sys.exit(1)
-
-    while True:
-        try:
-            def data_changed(driver):
-                nonlocal last_spin_data
-                current = fetchSpinValues()
-                if current != last_spin_data:
-                    last_spin_data = current
-                    return True
-                return False
-
-            wait = WebDriverWait(d, 60)
-            wait.until(data_changed)
-
-            # Обработка новых данных
-            await checkConditionsAndNotify(last_spin_data)
-
-        except Exception as e:
-            logging.error(f"Ошибка в watchForNewSpinLoop: {e}")
-            close_driver()
-            sys.exit(1)
+        logging.info("WebDriver закрыт.")
 
 # --------------------------
 # Aiogram: /start и main
