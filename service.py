@@ -59,7 +59,7 @@ lastSentSpinValue = None
 lastNotifiedSpinValue = None
 spinHistory = []
 
-# Новые счетчики для 2x, 3x, 4x
+# Новые счётчики для 2x, 3x, 4x
 missing2xCount = 0
 missing3xCount = 0
 missing4xCount = 0
@@ -210,6 +210,7 @@ def fetchSpinValues():
         "val_5x": None,
         "val_20x": None,
 
+        # Чтобы сохранить совместимость со старым кодом:
         "main_20x": None,
 
         # Флаги (как раньше)
@@ -221,6 +222,7 @@ def fetchSpinValues():
     try:
         wait = WebDriverWait(d, 5)
 
+        # --- Читаем 4 "крупных" числа (2x/3x/5x/20x) ---
         elem_2x = wait.until(
             EC.presence_of_element_located(
                 (By.CSS_SELECTOR, ".rounds-stats__color.rounds-stats__color_2x")
@@ -268,6 +270,7 @@ async def checkConditionsAndNotify(spin_data):
     Принимаем уже считанный spin_data, в котором:
       spin_data["main_20x"] -> int/None
       spin_data["2x"], spin_data["3x"], spin_data["4x"] -> bool
+
     Запускаем все проверки и отправляем уведомления при необходимости.
     """
     global spinHistory, lastSentSpinValue, lastNotifiedSpinValue, unchangedSpinValueCount
@@ -288,41 +291,47 @@ async def checkConditionsAndNotify(spin_data):
     logging.info(f"{color_str}Прочитан новый спин! main_20x={spinValue}, "
                  f"2x={spin_data['2x']}, 3x={spin_data['3x']}, 4x={spin_data['4x']}{RESET}")
 
-    # Обновление истории
+    # --- ЛОГИКА СЧЁТЧИКА (исправленная) ---
     if spinValue is not None:
-    # Если текущее значение меньше или равно предыдущему
-        if lastSentSpinValue is None or spinValue <= lastSentSpinValue:
-            unchangedSpinValueCount += 1
-        logging.info(
-            f"Значение 20x={spinValue} <= предыдущего ({lastSentSpinValue}). "
-            f"Счётчик остановок: {unchangedSpinValueCount}/{unchangedSpinValueThreshold}"
-        )
-        # Если счётчик достиг порога, отправляем уведомление
-        if unchangedSpinValueCount >= unchangedSpinValueThreshold:
-            alertMessage = f"Последняя золотая (35x) была {unchangedSpinValueThreshold} спинов назад!"
-            await sendNotification(alertMessage, notification_type="35x")
+        if lastSentSpinValue is None:
+            # Первая инициализация (например, при старте бота)
             unchangedSpinValueCount = 0
+            logging.info("Первый спин, инициализируем lastSentSpinValue и обнуляем счётчик.")
+        else:
+            # Если текущее значение > предыдущего => сброс
+            if spinValue > lastSentSpinValue:
+                unchangedSpinValueCount = 0
+                logging.info(
+                    f"Значение 20x={spinValue} > предыдущего ({lastSentSpinValue}). "
+                    "Счётчик остановок сброшен."
+                )
+            else:
+                # Если меньше или равно => увеличиваем счётчик
+                unchangedSpinValueCount += 1
+                logging.info(
+                    f"Значение 20x={spinValue} <= предыдущего ({lastSentSpinValue}). "
+                    f"Счётчик остановок: {unchangedSpinValueCount}/{unchangedSpinValueThreshold}"
+                )
+
+                # Если счётчик достиг порога, отправляем уведомление
+                if unchangedSpinValueCount >= unchangedSpinValueThreshold:
+                    alertMessage = f"Последняя золотая (35x) была {unchangedSpinValueThreshold} спинов назад!"
+                    await sendNotification(alertMessage, notification_type="35x")
+                    unchangedSpinValueCount = 0
+
+        # Обновляем lastSentSpinValue (в конце логики)
+        lastSentSpinValue = spinValue
     else:
-        # Сброс счётчика, если текущее значение больше предыдущего
+        # Если почему-то spinValue == None (ошибка парсинга?)
+        # Можно также обнулить счётчик или сделать что-то ещё
         unchangedSpinValueCount = 0
-        logging.info(
-            f"Значение 20x={spinValue} > предыдущего ({lastSentSpinValue}). "
-            "Счётчик остановок сброшен."
-        )
+        logging.info("spinValue == None. Счётчик остановок сброшен.")
 
-    # Обновляем lastSentSpinValue для сравнения в следующем цикле
-    lastSentSpinValue = spinValue
-
-
-
-
-        # Пример проверки «если spinValue <= 2»
-    if spinValue <= 2 and spinValue != lastNotifiedSpinValue:
-            message = f"{spinValue} золотых за последние 100 спинов!"
-            await sendNotification(message, notification_type="35x")
-            lastNotifiedSpinValue = spinValue
-
-            lastSentSpinValue = spinValue
+    # Пример проверки «если spinValue <= 2» (осталось как в примере)
+    if spinValue is not None and spinValue <= 2 and spinValue != lastNotifiedSpinValue:
+        message = f"{spinValue} золотых за последние 100 спинов!"
+        await sendNotification(message, notification_type="35x")
+        lastNotifiedSpinValue = spinValue
 
     # --- Проверка для 2x, 3x, 4x ---
     is_2x_present = spin_data['2x']
@@ -390,7 +399,7 @@ async def sendNotification(message, notification_type="other"):
             if attempt < retries:
                 await asyncio.sleep(5)
             else:
-                logging.error(f"Не удалось отправить сообщение после всех попыток.")
+                logging.error("Не удалось отправить сообщение после всех попыток.")
 
 # -----------------------------------------------------
 # Основная логика: ждём, когда на сайте поменяется спин
@@ -466,6 +475,7 @@ async def main():
 
         asyncio.create_task(watchForNewSpinLoop())
 
+        # Запускаем поллинг бота 35x (как в вашем коде)
         await dp.start_polling(bot_35x)
 
     except Exception as e:
