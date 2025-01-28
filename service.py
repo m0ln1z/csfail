@@ -278,38 +278,34 @@ async def checkConditionsAndNotify(spin_data):
 
     # Обновление истории
     if spinValue is not None:
-        spinHistory.append(spinValue)
-        if len(spinHistory) > 200:  # храним побольше
-            spinHistory.pop(0)
-
-    # --- Проверка на рост 20x (unchangedSpinValueCount) ---
-    # Проверяем, действительно ли текущее значение 20x > предыдущего?
-    # Если не растёт (или None), то увеличиваем счётчик. Если растёт — обнуляем.
-    if spinValue is not None:
-    # Проверяем, является ли значение 0 или меньше предыдущего
-        if spinValue == 0 or spinValue <= (lastSentSpinValue if lastSentSpinValue else -999999):
+    # Если текущее значение меньше либо равно предыдущему
+        if lastSentSpinValue is None or spinValue <= lastSentSpinValue:
             unchangedSpinValueCount += 1
         logging.info(
             f"Значение 20x={spinValue} <= предыдущего ({lastSentSpinValue}). "
             f"Счётчик остановок: {unchangedSpinValueCount}/{unchangedSpinValueThreshold}"
         )
-        # Если достигнут порог для отправки уведомления
+        # Если счётчик достиг порога, отправляем уведомление
         if unchangedSpinValueCount >= unchangedSpinValueThreshold:
             alertMessage = f"Последняя золотая (35x) была {unchangedSpinValueThreshold} спинов назад!"
             await sendNotification(alertMessage, notification_type="35x")
             unchangedSpinValueCount = 0
     else:
-        # Обнуляем счётчик при изменении значения
+        # Если текущее значение больше предыдущего, сбрасываем счётчик
         unchangedSpinValueCount = 0
+
+    # Обновляем lastSentSpinValue для сравнения в следующем цикле
+    lastSentSpinValue = spinValue
+
 
 
         # Пример проверки «если spinValue <= 2»
-        if spinValue <= 2 and spinValue != lastNotifiedSpinValue:
-            message = f"{spinValue} золотых за последние спины!"
+    if spinValue <= 2 and spinValue != lastNotifiedSpinValue:
+            message = f"{spinValue} золотых за последние 100 спинов!"
             await sendNotification(message, notification_type="35x")
             lastNotifiedSpinValue = spinValue
 
-        lastSentSpinValue = spinValue
+            lastSentSpinValue = spinValue
 
     # --- Проверка для 2x, 3x, 4x ---
     is_2x_present = spin_data['2x']
