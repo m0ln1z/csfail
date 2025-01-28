@@ -286,18 +286,22 @@ async def checkConditionsAndNotify(spin_data):
     # Проверяем, действительно ли текущее значение 20x > предыдущего?
     # Если не растёт (или None), то увеличиваем счётчик. Если растёт — обнуляем.
     if spinValue is not None:
-        if spinValue <= (lastSentSpinValue if lastSentSpinValue else -999999):
+    # Проверяем, является ли значение 0 или меньше предыдущего
+        if spinValue == 0 or spinValue <= (lastSentSpinValue if lastSentSpinValue else -999999):
             unchangedSpinValueCount += 1
-            logging.info(
-                f"Значение 20x={spinValue} <= предыдущего ({lastSentSpinValue}). "
-                f"Счётчик остановок: {unchangedSpinValueCount}/{unchangedSpinValueThreshold}"
-            )
-            if unchangedSpinValueCount >= unchangedSpinValueThreshold:
-                alertMessage = f"Последняя золотая (35x) была {unchangedSpinValueThreshold} спинов назад!"
-                await sendNotification(alertMessage, notification_type="35x")
-                unchangedSpinValueCount = 0
-        else:
+        logging.info(
+            f"Значение 20x={spinValue} <= предыдущего ({lastSentSpinValue}). "
+            f"Счётчик остановок: {unchangedSpinValueCount}/{unchangedSpinValueThreshold}"
+        )
+        # Если достигнут порог для отправки уведомления
+        if unchangedSpinValueCount >= unchangedSpinValueThreshold:
+            alertMessage = f"Последняя золотая (35x) была {unchangedSpinValueThreshold} спинов назад!"
+            await sendNotification(alertMessage, notification_type="35x")
             unchangedSpinValueCount = 0
+    else:
+        # Обнуляем счётчик при изменении значения
+        unchangedSpinValueCount = 0
+
 
         # Пример проверки «если spinValue <= 2»
         if spinValue <= 2 and spinValue != lastNotifiedSpinValue:
