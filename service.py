@@ -21,18 +21,18 @@ from aiogram.fsm.storage.memory import MemoryStorage
 
 # ---- Для цветных логов (ANSI) ----
 RESET = "\033[0m"
-RED   = "\033[31m"
-GREEN = "\033[32m"
-YELLOW= "\033[33m"
-BLUE  = "\033[34m"
-MAGENTA = "\033[35m"
-CYAN = "\033[36m"
+RED    = "\033[31m"
+GREEN  = "\033[32m"
+YELLOW = "\033[33m"
+BLUE   = "\033[34m"
+MAGENTA= "\033[35m"
+CYAN   = "\033[36m"
 
 # --------------------
 # Глобальные настройки
 # --------------------
 logging.basicConfig(
-    level=logging.DEBUG,  # Изменено с INFO на DEBUG
+    level=logging.DEBUG,  # Уровень логирования DEBUG для подробного вывода
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[logging.FileHandler("app.log"), logging.StreamHandler()]
 )
@@ -64,9 +64,9 @@ missing2xCount = 0
 missing3xCount = 0
 missing4xCount = 0
 
-missing2xThreshold = 11
-missing3xThreshold = 9
-missing4xThreshold = 9
+missing2xThreshold = 12  # Исправлено на 12 для соответствия сообщению
+missing3xThreshold = 10
+missing4xThreshold = 10
 
 lastNotified2x = None
 lastNotified3x = None
@@ -135,7 +135,7 @@ def save_state():
 # --------------------------------
 def create_driver():
     chromeOptions = Options()
-    chromeOptions.add_argument("--headless")
+    chromeOptions.add_argument("--headless")  # Для отладки можно закомментировать
     chromeOptions.add_argument("--disable-gpu")
     chromeOptions.add_argument("--no-sandbox")
     chromeOptions.add_argument("--disable-dev-shm-usage")
@@ -182,22 +182,8 @@ def close_driver():
         gc.collect()
 
 # -------------------------
-# Единоразовая загрузка URL
-# -------------------------
-def load_page_once():
-    d = get_driver()
-    try:
-        d.get(url)
-        logging.info("Страница загружена. Дальше не перезагружаем, ждём динамических обновлений.")
-        time.sleep(3)  # Небольшая пауза для первичной отрисовки
-    except Exception as e:
-        logging.error(f"Ошибка при загрузке страницы {url}: {e}")
-        close_driver()
-        raise
-
-# ------------------------
 # Чтение обновлённых данных
-# ------------------------
+# -------------------------
 def fetchSpinValues():
     """
     Читаем сразу 4 числовых значения по классам rounds-stats__color_2x, 3x, 5x, 20x
@@ -220,7 +206,7 @@ def fetchSpinValues():
     }
 
     try:
-        wait = WebDriverWait(d, 5)
+        wait = WebDriverWait(d, 10)  # Увеличено время ожидания до 10 секунд
 
         # --- Читаем 4 "крупных" числа (2x/3x/5x/20x) ---
         elem_2x = wait.until(
@@ -229,21 +215,40 @@ def fetchSpinValues():
             )
         )
         data["val_2x"] = int(elem_2x.text.strip())
+        logging.debug(f"val_2x прочитано как: {data['val_2x']}")
 
-        elem_3x = d.find_element(By.CSS_SELECTOR, ".rounds-stats__color.rounds-stats__color_3x")
+        elem_3x = wait.until(
+            EC.presence_of_element_located(
+                (By.CSS_SELECTOR, ".rounds-stats__color.rounds-stats__color_3x")
+            )
+        )
         data["val_3x"] = int(elem_3x.text.strip())
+        logging.debug(f"val_3x прочитано как: {data['val_3x']}")
 
-        elem_5x = d.find_element(By.CSS_SELECTOR, ".rounds-stats__color.rounds-stats__color_5x")
+        elem_5x = wait.until(
+            EC.presence_of_element_located(
+                (By.CSS_SELECTOR, ".rounds-stats__color.rounds-stats__color_5x")
+            )
+        )
         data["val_5x"] = int(elem_5x.text.strip())
+        logging.debug(f"val_5x прочитано как: {data['val_5x']}")
 
-        elem_20x = d.find_element(By.CSS_SELECTOR, ".rounds-stats__color.rounds-stats__color_20x")
+        elem_20x = wait.until(
+            EC.presence_of_element_located(
+                (By.CSS_SELECTOR, ".rounds-stats__color.rounds-stats__color_20x")
+            )
+        )
         val_20x = int(elem_20x.text.strip())
-
         data["val_20x"] = val_20x
         data["main_20x"] = val_20x  # сохраняем в старое поле
+        logging.debug(f"val_20x прочитано как: {data['val_20x']}")
 
         # --- Как раньше: проверяем наличие game_2x, game_3x, game_4x ---
-        parent_div = d.find_element(By.CSS_SELECTOR, 'div[data-swiper-slide-index="0"]')
+        parent_div = wait.until(
+            EC.presence_of_element_located(
+                (By.CSS_SELECTOR, 'div[data-swiper-slide-index="0"]')
+            )
+        )
         game_elements = parent_div.find_elements(By.CSS_SELECTOR, "a.game[class*='game_']")
 
         for elem in game_elements:
@@ -258,6 +263,10 @@ def fetchSpinValues():
         # Добавляем логирование считанных значений
         logging.debug(f"[DEBUG] Считанные значения: {data}")
 
+    except TimeoutException:
+        logging.error("Timeout при попытке найти один из элементов. Возможно, структура сайта изменилась.")
+        close_driver()
+        raise
     except Exception as e:
         logging.exception("Ошибка при чтении данных со страницы")
         close_driver()
@@ -350,36 +359,45 @@ async def checkConditionsAndNotify(spin_data):
     if is_2x_present:
         missing2xCount = 0
         lastNotified2x = None
+        logging.debug("2x выпала. Счётчик missing2xCount сброшен.")
     else:
         missing2xCount += 1
+        logging.debug(f"2x не выпала. Счётчик missing2xCount: {missing2xCount}/{missing2xThreshold}")
         if missing2xCount >= missing2xThreshold and missing2xCount != lastNotified2x:
             message = "2x не выпадала 12+ спинов подряд!"
             await sendNotification(message, notification_type="other")
             lastNotified2x = missing2xCount
+            logging.info(f"Уведомление отправлено: {message}")
             missing2xCount = 0
 
     # 3x
     if is_3x_present:
         missing3xCount = 0
         lastNotified3x = None
+        logging.debug("3x выпала. Счётчик missing3xCount сброшен.")
     else:
         missing3xCount += 1
+        logging.debug(f"3x не выпала. Счётчик missing3xCount: {missing3xCount}/{missing3xThreshold}")
         if missing3xCount >= missing3xThreshold and missing3xCount != lastNotified3x:
             message = "3x не выпадала 10+ спинов подряд!"
             await sendNotification(message, notification_type="other")
             lastNotified3x = missing3xCount
+            logging.info(f"Уведомление отправлено: {message}")
             missing3xCount = 0
 
     # 4x
     if is_4x_present:
         missing4xCount = 0
         lastNotified4x = None
+        logging.debug("4x выпала. Счётчик missing4xCount сброшен.")
     else:
         missing4xCount += 1
+        logging.debug(f"4x не выпала. Счётчик missing4xCount: {missing4xCount}/{missing4xThreshold}")
         if missing4xCount >= missing4xThreshold and missing4xCount != lastNotified4x:
             message = "4x не выпадала 10+ спинов подряд!"
             await sendNotification(message, notification_type="other")
             lastNotified4x = missing4xCount
+            logging.info(f"Уведомление отправлено: {message}")
             missing4xCount = 0
 
     # Сохраняем всё
@@ -414,6 +432,8 @@ async def sendNotification(message, notification_type="other"):
 # -----------------------------------------------------
 async def watchForNewSpinLoop():
     d = get_driver()
+    refresh_interval = 60  # Обновлять страницу каждые 60 секунд
+    last_refresh_time = time.time()
 
     try:
         # Считаем начальные данные
@@ -426,6 +446,14 @@ async def watchForNewSpinLoop():
 
         while True:
             try:
+                current_time = time.time()
+                if current_time - last_refresh_time > refresh_interval:
+                    logging.info("Периодическое обновление страницы для получения последних данных.")
+                    d.refresh()
+                    # Ждем некоторое время после обновления страницы
+                    await asyncio.sleep(5)
+                    last_refresh_time = current_time
+
                 current_spin_data = fetchSpinValues()
                 logging.debug(f"[DEBUG] Текущие данные: {current_spin_data}")
 
@@ -465,12 +493,20 @@ async def main():
         load_state()
         setup_handlers()
 
-        get_driver()
-        load_page_once()
+        # Убедитесь, что страница загружена хотя бы один раз
+        d = get_driver()
+        try:
+            d.get(url)
+            logging.info("Страница загружена. Дальше не перезагружаем, ждём динамических обновлений.")
+            await asyncio.sleep(3)  # Небольшая пауза для первичной отрисовки
+        except Exception as e:
+            logging.error(f"Ошибка при загрузке страницы {url}: {e}")
+            close_driver()
+            raise
 
         asyncio.create_task(watchForNewSpinLoop())
 
-        # Запускаем поллинг бота 35x (как в вашем коде)
+        # Запускаем поллинг бота
         await dp.start_polling(bot_35x)
 
     except Exception as e:
