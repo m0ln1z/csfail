@@ -279,7 +279,7 @@ async def checkConditionsAndNotify(spin_data):
 
     # Обновление истории
     if spinValue is not None:
-    # Если текущее значение меньше либо равно предыдущему
+    # Если текущее значение меньше или равно предыдущему
         if lastSentSpinValue is None or spinValue <= lastSentSpinValue:
             unchangedSpinValueCount += 1
         logging.info(
@@ -292,11 +292,16 @@ async def checkConditionsAndNotify(spin_data):
             await sendNotification(alertMessage, notification_type="35x")
             unchangedSpinValueCount = 0
     else:
-        # Если текущее значение больше предыдущего, сбрасываем счётчик
+        # Сброс счётчика, если текущее значение больше предыдущего
         unchangedSpinValueCount = 0
+        logging.info(
+            f"Значение 20x={spinValue} > предыдущего ({lastSentSpinValue}). "
+            "Счётчик остановок сброшен."
+        )
 
     # Обновляем lastSentSpinValue для сравнения в следующем цикле
     lastSentSpinValue = spinValue
+
 
 
 
