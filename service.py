@@ -200,51 +200,62 @@ def load_page_once():
 # ------------------------
 def fetchSpinValues():
     """
-    Читаем необходимые значения напрямую из уже загруженной страницы:
-    - Текущее число (например, 20x)
-    - Наличие game_2x, game_3x, game_4x
-    Возвращает словарь:
-       {
-         "main_20x": int/None,
-         "2x": True/False,
-         "3x": True/False,
-         "4x": True/False
-       }
+    Читаем сразу 4 числовых значения по классам rounds-stats__color_2x, 3x, 5x, 20x
+    + определяем флаги is_2x, is_3x, is_4x по старой логике из a.game.game_2x/... .
     """
     d = get_driver()
-    data = {"main_20x": None, "2x": False, "3x": False, "4x": False}
+    data = {
+        "val_2x": None,
+        "val_3x": None,
+        "val_5x": None,
+        "val_20x": None,
+
+        "main_20x": None,
+
+        # Флаги (как раньше)
+        "2x": False,
+        "3x": False,
+        "4x": False
+    }
 
     try:
         wait = WebDriverWait(d, 5)
 
-        # Основное значение 20x (пример: rounds-stats__color_20x)
-        main_element = wait.until(EC.presence_of_element_located(
-            (By.CSS_SELECTOR, ".rounds-stats__color.rounds-stats__color_20x")
-        ))
-        main_text = main_element.text.strip()
-        if main_text.isdigit():
-            data["main_20x"] = int(main_text)
-        else:
-            data["main_20x"] = None
+        elem_2x = wait.until(
+            EC.presence_of_element_located(
+                (By.CSS_SELECTOR, ".rounds-stats__color.rounds-stats__color_2x")
+            )
+        )
+        data["val_2x"] = int(elem_2x.text.strip())
 
-        # Ищем общий родитель по data-swiper-slide-index="0"
+        elem_3x = d.find_element(By.CSS_SELECTOR, ".rounds-stats__color.rounds-stats__color_3x")
+        data["val_3x"] = int(elem_3x.text.strip())
+
+        elem_5x = d.find_element(By.CSS_SELECTOR, ".rounds-stats__color.rounds-stats__color_5x")
+        data["val_5x"] = int(elem_5x.text.strip())
+
+        elem_20x = d.find_element(By.CSS_SELECTOR, ".rounds-stats__color.rounds-stats__color_20x")
+        val_20x = int(elem_20x.text.strip())
+
+        data["val_20x"] = val_20x
+        data["main_20x"] = val_20x  # сохраняем в старое поле
+
+        # --- Как раньше: проверяем наличие game_2x, game_3x, game_4x ---
         parent_div = d.find_element(By.CSS_SELECTOR, 'div[data-swiper-slide-index="0"]')
         game_elements = parent_div.find_elements(By.CSS_SELECTOR, "a.game[class*='game_']")
 
         for elem in game_elements:
             class_attr = elem.get_attribute("class")
             if "game_2x" in class_attr:
-                data['2x'] = True
+                data["2x"] = True
             elif "game_3x" in class_attr:
-                data['3x'] = True
+                data["3x"] = True
             elif "game_4x" in class_attr:
-                data['4x'] = True
+                data["4x"] = True
 
     except Exception as e:
         logging.exception("Ошибка при чтении данных со страницы")
-        # Закрываем браузер, чтобы при следующем цикле пересоздать
         close_driver()
-        # Повторно выбросим исключение для аварийного завершения
         raise
 
     return data
@@ -385,16 +396,10 @@ async def sendNotification(message, notification_type="other"):
 # Основная логика: ждём, когда на сайте поменяется спин
 # -----------------------------------------------------
 async def watchForNewSpinLoop():
-    """
-    В цикле:
-      1. Считываем текущее состояние (spin_data).
-      2. Ждём, пока оно поменяется.
-      3. Когда поменялось — обрабатываем (checkConditionsAndNotify).
-      4. Повторяем.
-    """
     d = get_driver()
 
     try:
+        # Считаем начальные данные
         last_spin_data = fetchSpinValues()
         if not last_spin_data:
             logging.error("Не удалось считать начальные данные со страницы.")
@@ -405,20 +410,30 @@ async def watchForNewSpinLoop():
                 def data_changed(driver):
                     nonlocal last_spin_data
                     current = fetchSpinValues()
-                    if current != last_spin_data:
+
+                    # Сравниваем конкретно четыре ключа
+                    if (current["val_2x"]  != last_spin_data["val_2x"]  or
+                        current["val_3x"]  != last_spin_data["val_3x"]  or
+                        current["val_5x"]  != last_spin_data["val_5x"]  or
+                        current["val_20x"] != last_spin_data["val_20x"]):
+
                         last_spin_data = current
                         return True
+
                     return False
 
-                # Ожидание изменения данных
+                # Ждём до 60 сек., пока одно из четырёх чисел не поменяется
                 wait = WebDriverWait(d, 60)
                 wait.until(data_changed)
 
-                # Обработка новых данных
+                # Если вышли из wait, значит данные изменились
                 await checkConditionsAndNotify(last_spin_data)
 
             except TimeoutException:
-                logging.warning("Timeout: данные не изменились за время ожидания. Продолжаем ожидание...")
+                logging.warning(
+                    "Timeout: числа 2x/3x/5x/20x не изменились за время ожидания. "
+                    "Продолжаем ожидание..."
+                )
             except Exception as e:
                 logging.error(f"Ошибка в watchForNewSpinLoop: {e}")
                 break
