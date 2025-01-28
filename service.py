@@ -32,7 +32,7 @@ CYAN = "\033[36m"
 # Глобальные настройки
 # --------------------
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,  # Изменено с INFO на DEBUG
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[logging.FileHandler("app.log"), logging.StreamHandler()]
 )
@@ -255,6 +255,9 @@ def fetchSpinValues():
             elif "game_4x" in class_attr:
                 data["4x"] = True
 
+        # Добавляем логирование считанных значений
+        logging.debug(f"[DEBUG] Считанные значения: {data}")
+
     except Exception as e:
         logging.exception("Ошибка при чтении данных со страницы")
         close_driver()
@@ -293,6 +296,10 @@ async def checkConditionsAndNotify(spin_data):
 
     # --- ЛОГИКА СЧЁТЧИКА (исправленная) ---
     if spinValue is not None:
+        # Добавляем логирование типов и значений
+        logging.debug(f"[DEBUG] spinValue type: {type(spinValue)}, value: {spinValue}")
+        logging.debug(f"[DEBUG] lastSentSpinValue type: {type(lastSentSpinValue)}, value: {lastSentSpinValue}")
+
         if lastSentSpinValue is None:
             # Первая инициализация (например, при старте бота)
             unchangedSpinValueCount = 0
@@ -321,6 +328,7 @@ async def checkConditionsAndNotify(spin_data):
 
         # Обновляем lastSentSpinValue (в конце логики)
         lastSentSpinValue = spinValue
+        logging.debug(f"[DEBUG] Обновлено lastSentSpinValue: {lastSentSpinValue}")
     else:
         # Если почему-то spinValue == None (ошибка парсинга?)
         # Можно также обнулить счётчик или сделать что-то ещё
@@ -413,36 +421,23 @@ async def watchForNewSpinLoop():
         if not last_spin_data:
             logging.error("Не удалось считать начальные данные со страницы.")
             raise SystemExit(1)
+        
+        logging.debug(f"[DEBUG] Начальные данные: {last_spin_data}")
 
         while True:
             try:
-                def data_changed(driver):
-                    nonlocal last_spin_data
-                    current = fetchSpinValues()
+                current_spin_data = fetchSpinValues()
+                logging.debug(f"[DEBUG] Текущие данные: {current_spin_data}")
 
-                    # Сравниваем конкретно четыре ключа
-                    if (current["val_2x"]  != last_spin_data["val_2x"]  or
-                        current["val_3x"]  != last_spin_data["val_3x"]  or
-                        current["val_5x"]  != last_spin_data["val_5x"]  or
-                        current["val_20x"] != last_spin_data["val_20x"]):
+                if current_spin_data != last_spin_data:
+                    logging.info("Обнаружены изменения в данных спина.")
+                    await checkConditionsAndNotify(current_spin_data)
+                    last_spin_data = current_spin_data
+                else:
+                    logging.warning("Timeout: числа 2x/3x/5x/20x не изменились за время ожидания. Продолжаем ожидание...")
 
-                        last_spin_data = current
-                        return True
+                await asyncio.sleep(15)  # Ждём 15 секунд перед следующей проверкой
 
-                    return False
-
-                # Ждём до 60 сек., пока одно из четырёх чисел не поменяется
-                wait = WebDriverWait(d, 60)
-                wait.until(data_changed)
-
-                # Если вышли из wait, значит данные изменились
-                await checkConditionsAndNotify(last_spin_data)
-
-            except TimeoutException:
-                logging.warning(
-                    "Timeout: числа 2x/3x/5x/20x не изменились за время ожидания. "
-                    "Продолжаем ожидание..."
-                )
             except Exception as e:
                 logging.error(f"Ошибка в watchForNewSpinLoop: {e}")
                 break
