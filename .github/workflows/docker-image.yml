@@ -63,8 +63,8 @@ jobs:
           docker run -d \
             --name selenium-bot \
             --restart=always \
-            --memory=2g \
-            --memory-swap=2g \
+            --memory=4g \
+            --memory-swap=4g \
             --cpus=2 \
             --shm-size=8g \
             -e BOT_TOKEN=${BOT_TOKEN} \
