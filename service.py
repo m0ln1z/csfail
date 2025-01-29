@@ -331,7 +331,7 @@ async def checkConditionsAndNotify(spin_data):
 
                 # Если счётчик достиг порога, отправляем уведомление
                 if unchangedSpinValueCount >= unchangedSpinValueThreshold:
-                    alertMessage = f"Последняя золотая (35x) была {unchangedSpinValueThreshold} спинов назад!"
+                    alertMessage = f"Последняя золотая (35x) была 85 спинов назад!"
                     await sendNotification(alertMessage, notification_type="35x")
                     unchangedSpinValueCount = 0
 
