@@ -54,7 +54,7 @@ dp.include_router(router)
 url = "https://6cs.fail/en/wheel"
 
 unchangedSpinValueCount = 0
-unchangedSpinValueThreshold = 85
+unchangedSpinValueThreshold = 70
 lastSentSpinValue = None
 lastNotifiedSpinValue = None
 spinHistory = []
@@ -64,9 +64,9 @@ missing2xCount = 0
 missing3xCount = 0
 missing4xCount = 0
 
-missing2xThreshold = 12  # Исправлено на 12 для соответствия сообщению
-missing3xThreshold = 10
-missing4xThreshold = 10
+missing2xThreshold = 11
+missing3xThreshold = 9
+missing4xThreshold = 9
 
 lastNotified2x = None
 lastNotified3x = None
