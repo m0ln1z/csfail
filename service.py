@@ -260,8 +260,7 @@ def fetchSpinValues():
             elif "game_4x" in class_attr:
                 data["4x"] = True
 
-        # Добавляем логирование считанных значений
-        logging.debug(f"[DEBUG] Считанные значения: {data}")
+        logging.debug(f"Считанные значения: {data}")
 
     except TimeoutException:
         logging.error("Timeout при попытке найти один из элементов. Возможно, структура сайта изменилась.")
@@ -305,9 +304,6 @@ async def checkConditionsAndNotify(spin_data):
 
     # --- ЛОГИКА СЧЁТЧИКА (исправленная) ---
     if spinValue is not None:
-        # Добавляем логирование типов и значений
-        logging.debug(f"[DEBUG] spinValue type: {type(spinValue)}, value: {spinValue}")
-        logging.debug(f"[DEBUG] lastSentSpinValue type: {type(lastSentSpinValue)}, value: {lastSentSpinValue}")
 
         if lastSentSpinValue is None:
             # Первая инициализация (например, при старте бота)
@@ -337,7 +333,6 @@ async def checkConditionsAndNotify(spin_data):
 
         # Обновляем lastSentSpinValue (в конце логики)
         lastSentSpinValue = spinValue
-        logging.debug(f"[DEBUG] Обновлено lastSentSpinValue: {lastSentSpinValue}")
     else:
         # Если почему-то spinValue == None (ошибка парсинга?)
         # Можно также обнулить счётчик или сделать что-то ещё
@@ -415,7 +410,7 @@ async def sendNotification(message, notification_type="other"):
                 logging.info(f"{MAGENTA}Сообщение отправлено через бот для 35x: {message}{RESET}")
             else:
                 await bot_other.send_message(chatId_other, message)
-                logging.info(f"{MAGENTA}Сообщение отправлено через бот для других: {message}{RESET}")
+                logging.info(f"{MAGENTA}Сообщение отправлено через бот для 2/3/4x: {message}{RESET}")
             break
         except Exception as e:
             logging.error(
@@ -442,7 +437,7 @@ async def watchForNewSpinLoop():
             logging.error("Не удалось считать начальные данные со страницы.")
             raise SystemExit(1)
         
-        logging.debug(f"[DEBUG] Начальные данные: {last_spin_data}")
+        logging.debug(f"Начальные данные: {last_spin_data}")
 
         while True:
             try:
@@ -455,7 +450,6 @@ async def watchForNewSpinLoop():
                     last_refresh_time = current_time
 
                 current_spin_data = fetchSpinValues()
-                logging.debug(f"[DEBUG] Текущие данные: {current_spin_data}")
 
                 if current_spin_data != last_spin_data:
                     logging.info("Обнаружены изменения в данных спина.")
@@ -463,12 +457,12 @@ async def watchForNewSpinLoop():
                     last_spin_data = current_spin_data
                 else:
                     logging.warning("Timeout: числа 2x/3x/5x/20x не изменились за время ожидания. Продолжаем ожидание...")
-
                 await asyncio.sleep(15)  # Ждём 15 секунд перед следующей проверкой
 
             except Exception as e:
                 logging.error(f"Ошибка в watchForNewSpinLoop: {e}")
-                break
+                close_driver()
+                sys.exit(1)
 
     except Exception as e:
         logging.error(f"Критическая ошибка в watchForNewSpinLoop: {e}")
