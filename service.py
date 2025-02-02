@@ -427,7 +427,7 @@ async def sendNotification(message, notification_type="other"):
 # -----------------------------------------------------
 async def watchForNewSpinLoop():
     d = get_driver()
-    refresh_interval = 60  # Обновлять страницу каждые 60 секунд
+    refresh_interval = 30  
     last_refresh_time = time.time()
 
     try:
@@ -457,7 +457,7 @@ async def watchForNewSpinLoop():
                     last_spin_data = current_spin_data
                 else:
                     logging.warning("Timeout: числа 2x/3x/5x/20x не изменились за время ожидания. Продолжаем ожидание...")
-                await asyncio.sleep(15)  # Ждём 15 секунд перед следующей проверкой
+                await asyncio.sleep(26)  # Ждём 26 секунд перед следующей проверкой
 
             except Exception as e:
                 logging.error(f"Ошибка в watchForNewSpinLoop: {e}")
