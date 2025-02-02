@@ -482,6 +482,17 @@ def setup_handlers():
     async def start_handler(message: types.Message):
         await handle_start(message)
 
+    @router.message(Command("reload"))
+    async def reload_handler(message: types.Message):
+        await message.answer("Бот сейчас перезапустится...")
+        logging.info("Получена команда /reload — скрипт завершается, Docker перезапустит скрипт")
+        
+        close_driver()  
+        save_state()
+        
+        await asyncio.sleep(1)
+        sys.exit(1)
+
 async def main():
     try:
         load_state()
