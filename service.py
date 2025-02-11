@@ -186,90 +186,101 @@ def close_driver():
 # -------------------------
 def fetchSpinValues():
     """
-    Читаем сразу 4 числовых значения по классам rounds-stats__color_2x, 3x, 5x, 20x
-    + определяем флаги is_2x, is_3x, is_4x по старой логике из a.game.game_2x/... .
+    Читаем сразу 4 числовых значения по классам rounds-stats__color_2x, 3x, 5x, 20x,
+    определяем флаги is_2x, is_3x, is_4x по старой логике из a.game.game_2x/... .
+
+    Если все числовые значения равны 0, предполагаем, что страница ещё не полностью загрузилась,
+    ждем 1.5–2 секунды и повторяем попытку.
     """
     d = get_driver()
-    data = {
-        "val_2x": None,
-        "val_3x": None,
-        "val_5x": None,
-        "val_20x": None,
+    while True:
+        try:
+            wait = WebDriverWait(d, 10)  # Увеличено время ожидания до 10 секунд
 
-        # Чтобы сохранить совместимость со старым кодом:
-        "main_20x": None,
+            data = {
+                "val_2x": None,
+                "val_3x": None,
+                "val_5x": None,
+                "val_20x": None,
 
-        # Флаги (как раньше)
-        "2x": False,
-        "3x": False,
-        "4x": False
-    }
+                # Чтобы сохранить совместимость со старым кодом:
+                "main_20x": None,
 
-    try:
-        wait = WebDriverWait(d, 10)  # Увеличено время ожидания до 10 секунд
+                # Флаги (как раньше)
+                "2x": False,
+                "3x": False,
+                "4x": False
+            }
 
-        # --- Читаем 4 "крупных" числа (2x/3x/5x/20x) ---
-        elem_2x = wait.until(
-            EC.presence_of_element_located(
-                (By.CSS_SELECTOR, ".rounds-stats__color.rounds-stats__color_2x")
+            # --- Читаем 4 "крупных" числа (2x/3x/5x/20x) ---
+            elem_2x = wait.until(
+                EC.presence_of_element_located(
+                    (By.CSS_SELECTOR, ".rounds-stats__color.rounds-stats__color_2x")
+                )
             )
-        )
-        data["val_2x"] = int(elem_2x.text.strip())
-        logging.debug(f"val_2x прочитано как: {data['val_2x']}")
+            data["val_2x"] = int(elem_2x.text.strip())
+            logging.debug(f"val_2x прочитано как: {data['val_2x']}")
 
-        elem_3x = wait.until(
-            EC.presence_of_element_located(
-                (By.CSS_SELECTOR, ".rounds-stats__color.rounds-stats__color_3x")
+            elem_3x = wait.until(
+                EC.presence_of_element_located(
+                    (By.CSS_SELECTOR, ".rounds-stats__color.rounds-stats__color_3x")
+                )
             )
-        )
-        data["val_3x"] = int(elem_3x.text.strip())
-        logging.debug(f"val_3x прочитано как: {data['val_3x']}")
+            data["val_3x"] = int(elem_3x.text.strip())
+            logging.debug(f"val_3x прочитано как: {data['val_3x']}")
 
-        elem_5x = wait.until(
-            EC.presence_of_element_located(
-                (By.CSS_SELECTOR, ".rounds-stats__color.rounds-stats__color_5x")
+            elem_5x = wait.until(
+                EC.presence_of_element_located(
+                    (By.CSS_SELECTOR, ".rounds-stats__color.rounds-stats__color_5x")
+                )
             )
-        )
-        data["val_5x"] = int(elem_5x.text.strip())
-        logging.debug(f"val_5x прочитано как: {data['val_5x']}")
+            data["val_5x"] = int(elem_5x.text.strip())
+            logging.debug(f"val_5x прочитано как: {data['val_5x']}")
 
-        elem_20x = wait.until(
-            EC.presence_of_element_located(
-                (By.CSS_SELECTOR, ".rounds-stats__color.rounds-stats__color_20x")
+            elem_20x = wait.until(
+                EC.presence_of_element_located(
+                    (By.CSS_SELECTOR, ".rounds-stats__color.rounds-stats__color_20x")
+                )
             )
-        )
-        val_20x = int(elem_20x.text.strip())
-        data["val_20x"] = val_20x
-        data["main_20x"] = val_20x  # сохраняем в старое поле
-        logging.debug(f"val_20x прочитано как: {data['val_20x']}")
+            val_20x = int(elem_20x.text.strip())
+            data["val_20x"] = val_20x
+            data["main_20x"] = val_20x  # сохраняем в старое поле
+            logging.debug(f"val_20x прочитано как: {data['val_20x']}")
 
-        # --- Как раньше: проверяем наличие game_2x, game_3x, game_4x ---
-        parent_div = wait.until(
-            EC.presence_of_element_located(
-                (By.CSS_SELECTOR, 'div[data-swiper-slide-index="0"]')
+            # --- Как раньше: проверяем наличие game_2x, game_3x, game_4x ---
+            parent_div = wait.until(
+                EC.presence_of_element_located(
+                    (By.CSS_SELECTOR, 'div[data-swiper-slide-index="0"]')
+                )
             )
-        )
-        game_elements = parent_div.find_elements(By.CSS_SELECTOR, "a.game[class*='game_']")
+            game_elements = parent_div.find_elements(By.CSS_SELECTOR, "a.game[class*='game_']")
 
-        for elem in game_elements:
-            class_attr = elem.get_attribute("class")
-            if "game_2x" in class_attr:
-                data["2x"] = True
-            elif "game_3x" in class_attr:
-                data["3x"] = True
-            elif "game_4x" in class_attr:
-                data["4x"] = True
+            for elem in game_elements:
+                class_attr = elem.get_attribute("class")
+                if "game_2x" in class_attr:
+                    data["2x"] = True
+                elif "game_3x" in class_attr:
+                    data["3x"] = True
+                elif "game_4x" in class_attr:
+                    data["4x"] = True
 
-        logging.debug(f"Считанные значения: {data}")
+            logging.debug(f"Считанные значения: {data}")
 
-    except TimeoutException:
-        logging.error("Timeout при попытке найти один из элементов. Возможно, структура сайта изменилась.")
-        close_driver()
-        raise
-    except Exception as e:
-        logging.exception("Ошибка при чтении данных со страницы")
-        close_driver()
-        raise
+        except TimeoutException:
+            logging.error("Timeout при попытке найти один из элементов. Возможно, структура сайта изменилась.")
+            close_driver()
+            raise
+        except Exception as e:
+            logging.exception("Ошибка при чтении данных со страницы")
+            close_driver()
+            raise
+
+        # Если все числовые значения равны 0, ждем 1.5-2 секунды и повторяем попытку.
+        if data["val_2x"] == 0 and data["val_3x"] == 0 and data["val_5x"] == 0 and data["val_20x"] == 0:
+            logging.info("Все значения равны 0, возможно страница ещё не полностью загрузилась. Ждем 2 секунды и пробуем снова...")
+            time.sleep(2)
+        else:
+            break
 
     return data
 
